@@ -1,0 +1,1510 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Omni Checklist Hub</title>
+    
+    <!-- PWA, SEO & Mobile Meta -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Omni Checklist">
+    <meta name="application-name" content="Omni Checklist">
+    <meta name="description" content="Omni Technologies Device Checklist Hub for fire-alarm inspections.">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="apple-touch-icon" href="https://placehold.co/180x180/0ea5e9/ffffff?text=Omni">
+    <link rel="manifest" href="data:application/manifest+json,{
+        &quot;name&quot;: &quot;Omni Checklist Hub&quot;,
+        &quot;short_name&quot;: &quot;OmniCheck&quot;,
+        &quot;start_url&quot;: &quot;.&quot;,
+        &quot;display&quot;: &quot;standalone&quot;,
+        &quot;background_color&quot;: &quot;#0f172a&quot;,
+        &quot;theme_color&quot;: &quot;#0ea5e9&quot;,
+        &quot;description&quot;: &quot;A checklist application for Omni inspectors.&quot;,
+        &quot;icons&quot;: [{
+            &quot;src&quot;: &quot;https://placehold.co/192x192/0ea5e9/ffffff?text=Omni&quot;,
+            &quot;sizes&quot;: &quot;192x192&quot;,
+            &quot;type&quot;: &quot;image/png&quot;
+        }, {
+            &quot;src&quot;: &quot;https://placehold.co/512x512/0ea5e9/ffffff?text=Omni&quot;,
+            &quot;sizes&quot;: &quot;512x512&quot;,
+            &quot;type&quot;: &quot;image/png&quot;
+        }]
+    }">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'media', // or 'class'
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+            },
+            colors: {
+              slate: {
+                850: '#17202e',
+                950: '#0f172a',
+              }
+            }
+          }
+        }
+      }
+    </script>
+    
+    <!-- Custom Styles -->
+    <style type="text/css">
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
+      
+      /* Base styles */
+      body { 
+        font-family: 'Inter', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        padding-bottom: 56px; /* Prevent footer from overlapping content */
+      }
+
+      /* Text Size Feature */
+      html { font-size: 16px; /* Default: Medium */ }
+      html[data-text-size="small"] { font-size: 14px; }
+      html[data-text-size="large"] { font-size: 18px; }
+      
+      /* Custom focus rings for better accessibility */
+      .focus-ring { 
+        @apply focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950 focus:ring-sky-500; 
+      }
+      
+      /* Arrow rotation for accordion (used for completed devices) */
+      [aria-expanded="true"] .accordion-arrow { transform: rotate(180deg); }
+      
+      /* Styling for sortable table headers */
+      .table-header-sortable:hover { @apply bg-slate-200 dark:bg-slate-700/50; }
+      .table-header-sortable .sort-icon { opacity: 0.3; transition: opacity 0.2s; }
+      .table-header-sortable[aria-sort] .sort-icon { opacity: 1; }
+      
+      /* Visual feedback on check/uncheck */
+      @keyframes flash-sky {
+        0% { background-color: transparent; }
+        50% { background-color: rgba(14, 165, 233, 0.1); }
+        100% { background-color: transparent; }
+      }
+      .flash-bg {
+        animation: flash-sky 0.5s ease-out;
+      }
+      
+      /* Styles for checked items */
+      .checked-item {
+        @apply bg-slate-100/50 dark:bg-slate-800/20;
+      }
+      .checked-item .checked-text {
+        @apply line-through text-slate-500 dark:text-slate-500;
+      }
+
+      /* Sticky footer styles with high contrast */
+      .sticky-footer {
+        background-color: #0f172a; /* slate-950 */
+      }
+      .dark .sticky-footer {
+          background-color: #f8fafc; /* slate-50 */
+      }
+    </style>
+</head>
+<body class="bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-200">
+
+    <!-- Hidden file input for the import functionality -->
+    <input type="file" id="import-file-input" class="hidden" accept=".json">
+
+    <div id="app-container" class="relative min-h-screen">
+        
+        <!-- Header -->
+        <header class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-40 w-full border-b border-slate-200 dark:border-slate-800">
+            <div class="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex items-center justify-between h-16">
+                    <!-- Left Side: Title -->
+                    <div class="flex items-center">
+                        <span class="text-2xl font-bold text-sky-600 dark:text-sky-500">✅</span>
+                        <h1 class="ml-3 text-xl font-bold tracking-tight">Omni Checklist</h1>
+                    </div>
+                    
+                    <!-- Right Side: Hamburger Menu -->
+                    <div id="header-menu-container" class="relative">
+                        <button id="menu-toggle-button" type="button" class="p-2 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 focus-ring" aria-label="Open options menu" aria-haspopup="true" aria-expanded="false">
+                            <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                            </svg>
+                        </button>
+                        
+                        <div id="menu-dropdown" class="hidden absolute right-0 mt-2 w-56 origin-top-right rounded-md bg-white dark:bg-slate-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none" role="menu" aria-orientation="vertical" aria-labelledby="menu-toggle-button" tabindex="-1">
+                            <div class="py-1" role="none">
+                                <a href="#" class="text-slate-700 dark:text-slate-200 block px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700" role="menuitem" tabindex="-1" id="menu-undo" data-menu-action="undo">Undo Last Check</a>
+                                <div class="border-t border-slate-200 dark:border-slate-700 my-1"></div>
+                                <a href="#" class="text-slate-700 dark:text-slate-200 block px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700" role="menuitem" tabindex="-1" id="menu-import" data-menu-action="import">Import List...</a>
+                                <a href="#" class="text-slate-700 dark:text-slate-200 block px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700" role="menuitem" tabindex="-1" id="menu-export" data-menu-action="export">Export Inspected List</a>
+                                <div class="border-t border-slate-200 dark:border-slate-700 my-1"></div>
+                                <div class="px-4 py-2 text-xs uppercase font-bold text-slate-500 dark:text-slate-400">Text Size</div>
+                                <div class="flex justify-around items-center px-2 py-1">
+                                    <button data-text-size="small" class="text-size-btn w-10 h-10 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center focus-ring text-sm">S</button>
+                                    <button data-text-size="medium" class="text-size-btn w-10 h-10 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center focus-ring text-base font-bold">M</button>
+                                    <button data-text-size="large" class="text-size-btn w-10 h-10 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center focus-ring text-lg">L</button>
+                                </div>
+                                <div class="border-t border-slate-200 dark:border-slate-700 my-1"></div>
+                                <a href="#" class="text-red-600 dark:text-red-400 block px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700" role="menuitem" tabindex="-1" id="menu-clear" data-menu-action="clear-all">Clear All Checkmarks...</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                 <!-- Mobile Building Picker (becomes visible via JS) -->
+                <div id="mobile-building-picker-container" class="sm:hidden pb-4"></div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="max-w-screen-2xl mx-auto p-2 sm:p-6 lg:p-8">
+            <div class="flex flex-col sm:flex-row gap-8">
+                <!-- Checklist Workspace -->
+                <div id="checklist-workspace" class="flex-grow">
+                     <div id="welcome-message" class="text-center py-20 px-4">
+                        <h2 class="text-2xl font-semibold text-slate-600 dark:text-slate-400">Welcome, Inspector!</h2>
+                        <p class="mt-2 text-slate-500">Please select a checklist from the list to begin your inspection.</p>
+                    </div>
+                </div>
+
+                <!-- Desktop Building Picker Sidebar -->
+                <aside id="desktop-building-picker-container" class="hidden sm:block sm:w-64 md:w-72 lg:w-80 flex-shrink-0">
+                </aside>
+            </div>
+        </main>
+        
+        <!-- Last Checked Footer -->
+       <footer id="last-checked-footer" class="fixed bottom-0 left-0 right-0 p-3 border-t border-slate-300 dark:border-slate-700 sticky-footer z-30 hidden">
+            <div class="max-w-screen-2xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 sm:px-6 lg:px-8 gap-1 sm:gap-4">
+                <div id="footer-device-counter-container" class="text-sm text-slate-50 dark:text-slate-800 font-medium whitespace-nowrap w-full sm:w-auto text-left">
+                    Devices on screen: <span id="footer-device-count" class="font-bold text-white dark:text-black">0</span>
+                </div>
+
+                <p id="last-checked-container" class="text-sm text-slate-50 dark:text-slate-800 font-medium text-left sm:text-right w-full sm:w-auto flex-grow invisible">
+                    Last Checked: <span id="last-checked-text" class="font-bold text-sky-400 dark:text-sky-600"></span>
+                </p>
+            </div>
+        </footer>
+
+        <!-- Toasts/Notifications Container -->
+        <div id="toast-container" aria-live="assertive" aria-atomic="true" class="fixed bottom-16 right-0 p-4 sm:p-6 space-y-3 z-50 w-full max-w-sm"></div>
+        
+        <!-- Confirmation Modal -->
+        <div id="confirmation-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+            <div id="confirmation-modal-panel" class="relative transform overflow-hidden rounded-lg bg-white dark:bg-slate-800 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
+                <div class="bg-white dark:bg-slate-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <div class="sm:flex sm:items-start">
+                        <div class="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/50 sm:mx-0 sm:h-10 sm:w-10">
+                            <svg class="h-6 w-6 text-red-600 dark:text-red-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"></path></svg>
+                        </div>
+                        <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                            <h3 class="text-lg font-semibold leading-6 text-slate-900 dark:text-slate-100" id="modal-title">Confirmation</h3>
+                            <div class="mt-2">
+                                <p class="text-sm text-slate-500 dark:text-slate-400" id="modal-message">Are you sure? This action cannot be undone.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-slate-50 dark:bg-slate-800/50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
+                    <button type="button" id="modal-confirm-button" class="inline-flex w-full justify-center rounded-md border border-transparent bg-red-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-red-700 focus-ring sm:ml-3 sm:w-auto sm:text-sm">Confirm</button>
+                    <button type="button" id="modal-cancel-button" class="mt-3 inline-flex w-full justify-center rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-4 py-2 text-base font-medium text-slate-700 dark:text-slate-200 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-600 focus-ring sm:mt-0 sm:w-auto sm:text-sm">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Main Application Logic -->
+    <script type="module">
+        // ===================================================================================
+        // --- CHECKLIST DATA ---
+        // All original data is preserved here. Adding new company lists is as simple
+        // as adding a new object to this array following the same format.
+        // ===================================================================================
+        const CHECKLISTS = [
+            {
+                "key": "salem_schools",
+                "name": "Salem School District",
+                "location": "Fire Alarm Device Inspection",
+                "devices": [
+                    { "loop": 1, "address": 1, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966738017", "messages": "1ST FLR SMOKE QUAD B MAIN FACP" },
+                    { "loop": 1, "address": 2, "model": "SD", "deviceType": "Duct Supervisory Non-Latching", "serialNumber": "3913529323", "messages": "1st FLR DUCT C-100 OUTSIDE RM #102" },
+                    { "loop": 1, "address": 3, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3915786250", "messages": "1st FLR SMOKE BOILER ROOM" },
+                    { "loop": 1, "address": 4, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3915575502", "messages": "1ST FLR SMOKE RM 105B" },
+                    { "loop": 1, "address": 5, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3918746237", "messages": "1st FLR SMOKE C-100 OUTSIDE FLEX RM 104" },
+                    { "loop": 1, "address": 6, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966729305", "messages": "1ST FLR SMOKE IMC SOUTH BY STAIRS" },
+                    { "loop": 1, "address": 7, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966727455", "messages": "1ST FLR SMOKE IMC NORTH BY DOOR" },
+                    { "loop": 1, "address": 8, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966733876", "messages": "1ST FLR SMOKE GRADE SCHOOL LOWER MECH" },
+                    { "loop": 1, "address": 9, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3918746152", "messages": "1st FLR SMOKE MAINTENANCE ROOM 111" },
+                    { "loop": 1, "address": 10, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3915581404", "messages": "1st FLR SMOKE MAINTENANCE ROOM 111" },
+                    { "loop": 1, "address": 12, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3918744547", "messages": "1ST FLR SMOKE C-100 OUTSIDE 5K RM #111" },
+                    { "loop": 1, "address": 13, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3918744288", "messages": "1ST FLR SMOKE BOILER ROOM 504A" },
+                    { "loop": 1, "address": 14, "model": "PS", "deviceType": "Smoke", "serialNumber": "3915564087", "messages": "1ST FLR SMOKE NORTH KITCHEN 501" },
+                    { "loop": 1, "address": 15, "model": "PS", "deviceType": "Smoke", "serialNumber": "3915563653", "messages": "1ST FLR SMOKE DISCOVERY ROOM" },
+                    { "loop": 1, "address": 16, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966725871", "messages": "1ST FLR SMOKE GRADE SCHOOL GYM STORAGE" },
+                    { "loop": 1, "address": 23, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966728377", "messages": "1ST FLR SMOKE SOUTH COMPUTER LAB" },
+                    { "loop": 1, "address": 24, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966739915", "messages": "1ST FLR SMOKE SOUTH CLOSET IN ROOM 374" },
+                    { "loop": 1, "address": 25, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966734187", "messages": "1ST FLR SMOKE NORTH CLOSET IN ROOM 374" },
+                    { "loop": 1, "address": 26, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966734279", "messages": "1ST FLR SMOKE CLASSROOM 374" },
+                    { "loop": 1, "address": 27, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966720968", "messages": "1ST FLR SMOKE CLASSROOM 377" },
+                    { "loop": 1, "address": 28, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966733494", "messages": "1ST FLR SMOKE CLASSROOM 337" },
+                    { "loop": 1, "address": 29, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966725260", "messages": "2ND FLR SMOKE HALL BY ROOM 277" },
+                    { "loop": 1, "address": 30, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966730455", "messages": "2ND FLR SMOKE HALL BY ROOM 374" },
+                    { "loop": 1, "address": 31, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966738246", "messages": "2ND FLR SMOKE HALL BY ROOM 318" },
+                    { "loop": 1, "address": 32, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966743226", "messages": "2ND FLR SMOKE S CLOSET BY ROOM 377" },
+                    { "loop": 1, "address": 33, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966729336", "messages": "2ND FLR SMOKE CENTER CLOSET BY R00M 377" },
+                    { "loop": 1, "address": 34, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966742397", "messages": "2ND FLR SMOKE NORTH CLOSET BY ROOM 377" },
+                    { "loop": 1, "address": 36, "model": "PS", "deviceType": "Smoke", "serialNumber": "3966738376", "messages": "BOILER ROOM ABOVE NAC PANEL" },
+                    { "loop": 1, "address": 37, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966742373", "messages": "2ND FLR SMOKE QUAD A SMOKE DOOR" },
+                    { "loop": 1, "address": 38, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966728117", "messages": "1ST FLR SMOKE QUAD A ROOM 642" },
+                    { "loop": 1, "address": 39, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966728124", "messages": "1ST FLR SMOKE QUAD A SOUTH VESTIBULE" },
+                    { "loop": 1, "address": 40, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966728254", "messages": "1ST FLR SMOKE QUAD A CORR 144 SOUTH" },
+                    { "loop": 1, "address": 41, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966727875", "messages": "1ST FLR SMOKE QUAD A CORR 144 CENTER" },
+                    { "loop": 1, "address": 42, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966728216", "messages": "1ST FLR SMOKE QUAD A CORR 144 NORTH" },
+                    { "loop": 1, "address": 43, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966734156", "messages": "1ST FLR SMOKE QUAD A CORR 144B SOUTH" },
+                    { "loop": 1, "address": 44, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966728100", "messages": "1ST FLR SMOKE QUAD A CORR 144B NORTH" },
+                    { "loop": 1, "address": 45, "model": "SD", "deviceType": "Duct Supervisory Latching", "serialNumber": "3967912065", "messages": "DUCT DETECTOR RMUA 1" },
+                    { "loop": 1, "address": 47, "model": "SD", "deviceType": "Duct Supervisory Latching", "serialNumber": "3967909751", "messages": "DUCT DETECTOR RTU 9" },
+                    { "loop": 1, "address": 50, "model": "SD", "deviceType": "Duct Supervisory Latching", "serialNumber": "3957596909", "messages": "DUCT RTU-3 RETURN CLOSET IN ROOM 374" },
+                    { "loop": 1, "address": 51, "model": "SD", "deviceType": "Duct Supervisory Latching", "serialNumber": "3912129852", "messages": "DUCT RTU-8 SUPPLY HALL BY ROOM 335" },
+                    { "loop": 1, "address": 126, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892214057", "messages": "1ST FLR MID. SCHOOL PRIMARY RAMP NORTH" },
+                    { "loop": 1, "address": 127, "model": "CRR", "deviceType": "Relay Non-Silenceable", "serialNumber": "5225963123", "messages": "1ST FLR CO RELAY MECH RM #504A" },
+                    { "loop": 1, "address": 128, "model": "278", "deviceType": "Pull Station", "serialNumber": "4891769633", "messages": "1st FLR PULL GYM" },
+                    { "loop": 1, "address": 129, "model": "278", "deviceType": "Pull Station", "serialNumber": "4891831910", "messages": "1ST FLR PULL C-101 OUTSIDE RM #115" },
+                    { "loop": 1, "address": 130, "model": "CC1S", "deviceType": "Genesis Audible Visible Silence", "serialNumber": "5077458921", "messages": "1st FLR CC1S BPS STORAGE RM #105B" },
+                    { "loop": 1, "address": 132, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892099357", "messages": "1ST FLR PULL MID SCH IMC UPPER HALL NORTH" },
+                    { "loop": 1, "address": 133, "model": "278", "deviceType": "Pull Station", "serialNumber": "4891163769", "messages": "1ST FLR PULL MID SCH IMC UPPER HALL SOUTH" },
+                    { "loop": 1, "address": 134, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892173736", "messages": "1ST FLR PULL GRD SCH LOWER EXIT NORTH" },
+                    { "loop": 1, "address": 135, "model": "T3T4", "deviceType": "Auto Sync Output Silenceable", "serialNumber": "5800842140", "messages": "1ST FLR T3T4 SYNC MECH RM #504A" },
+                    { "loop": 1, "address": 136, "model": "T3T4", "deviceType": "Auto Sync Output Silenceable", "serialNumber": "5800842157", "messages": "Loop 1 Device 136" },
+                    { "loop": 1, "address": 138, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892242340", "messages": "1ST FLR PULL GRD SCH EAST HALL NORTH EXIT" },
+                    { "loop": 1, "address": 139, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892100428", "messages": "1ST FLR PULL GRD SCH EAST LOBBY SOUTH" },
+                    { "loop": 1, "address": 140, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892110472", "messages": "1ST FLR PULL GRD SCH EAST LOBBY NORTH" },
+                    { "loop": 1, "address": 141, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892110984", "messages": "1ST FLR PULL ADMIN OFFICE" },
+                    { "loop": 1, "address": 142, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892110564", "messages": "ROOM 301 EXIT 1ST FLR PULL QUAD E" },
+                    { "loop": 1, "address": 144, "model": "CT1", "deviceType": "Monitor", "serialNumber": "4809011380", "messages": "1ST FLR DOOR RELEASE OFFICE" },
+                    { "loop": 1, "address": 145, "model": "CR", "deviceType": "Relay Non-Silenceable", "serialNumber": "5205109886", "messages": "1ST FLR RELAY RMA1 SHUTDOWN" },
+                    { "loop": 1, "address": 147, "model": "CC1S", "deviceType": "Genesis Audible Visible Silence", "serialNumber": "5077859117", "messages": "FACP ROOM 1ST FLR NAC P.S." },
+                    { "loop": 1, "address": 148, "model": "CC1", "deviceType": "Continuous Silenceable ANS TRIGGER", "serialNumber": "5077967560", "messages": "INSIDE FACP" },
+                    { "loop": 1, "address": 149, "model": "CC1S", "deviceType": "Genesis Audible Visible Silence", "serialNumber": "5077845196", "messages": "BOOSTER PANEL BOILER ROOM" },
+                    { "loop": 1, "address": 150, "model": "CR", "deviceType": "Relay Non-Silenceable", "serialNumber": "5207351597", "messages": "1ST FLR FACP ROOM DOOR HOLD RELAY" },
+                    { "loop": 1, "address": 151, "model": "CR", "deviceType": "Relay Non-Silenceable", "serialNumber": "5207335894", "messages": "DOOR HOLD RELAY 1ST FLR FACP ROOM" },
+                    { "loop": 1, "address": 153, "model": "CR", "deviceType": "Relay Non-Silenceable", "serialNumber": "5222027484", "messages": "RTU-3 SHUTDOWN CLOSET IN ROOM 374" },
+                    { "loop": 1, "address": 156, "model": "278", "deviceType": "Pull Station", "serialNumber": "4891825964", "messages": "1ST FLR PULL MAINT #111 WEST ENTRANCE" },
+                    { "loop": 1, "address": 158, "model": "CR", "deviceType": "Relay Non-Silenceable", "serialNumber": "5207216902", "messages": "1ST FLR RELAY RTU 9 SHUTDOWN" },
+                    { "loop": 1, "address": 160, "model": "CT1", "deviceType": "Monitor", "serialNumber": "4809066076", "messages": "ADMIN OFFICE DOOR RELEASE" },
+                    { "loop": 1, "address": 161, "model": "CR", "deviceType": "Relay Non-Silenceable", "serialNumber": "5225897831", "messages": "1ST FLR BY ROOM 102 AHU SHUTDOWN" },
+                    { "loop": 1, "address": 162, "model": "CR", "deviceType": "Relay Non-Silenceable", "serialNumber": "5225651167", "messages": "1ST FLR NORTH GYM RM 116 AUDIO SHUTDN" },
+                    { "loop": 1, "address": 163, "model": "CR", "deviceType": "Relay Non-Silenceable", "serialNumber": "5226805019", "messages": "1ST FLR NORTH GYM RM 116 AUDIO SHUTDN" },
+                    { "loop": 1, "address": 164, "model": "CC1S", "deviceType": "Genesis Audible Visible Silence", "serialNumber": "5077842041", "messages": "1ST FLR BOILER ROOM NAC PNL" },
+                    { "loop": 1, "address": 172, "model": "MCC1", "deviceType": "Continuous Silenceable", "serialNumber": "5065509307", "messages": "AUDIO CIRC. 11 PHASE A" },
+                    { "loop": 1, "address": 173, "model": "MCC1", "deviceType": "Continuous Silenceable", "serialNumber": "5065508522", "messages": "AUDIO CIRC. 12 PHASE A" },
+                    { "loop": 1, "address": 174, "model": "MCC1", "deviceType": "Continuous Silenceable", "serialNumber": "5065508959", "messages": "AUDIO CIRC. 13 PHASE A" },
+                    { "loop": 2, "address": 1, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966736488", "messages": "MEZZ SMOKE ELEV. EQUIP ROOM" },
+                    { "loop": 2, "address": 2, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966740287", "messages": "1ST FLR SMOKE OUTSID STORAGE 533" },
+                    { "loop": 2, "address": 3, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966738727", "messages": "1ST FLR SMOKE NEW ART STORAGE 517" },
+                    { "loop": 2, "address": 4, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966738734", "messages": "1ST FLR SMOKE NEW CE STORAGE ROOM 515" },
+                    { "loop": 2, "address": 5, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966738574", "messages": "1ST FLR SMOKE WEST LOADING DOCK" },
+                    { "loop": 2, "address": 6, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966734958", "messages": "1ST FLR SMOKE CNTR LOADING DOCK" },
+                    { "loop": 2, "address": 7, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966738710", "messages": "1ST FLR SMOKE EAST LOADING DOCK" },
+                    { "loop": 2, "address": 8, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966734989", "messages": "1ST FLR SMOKE NEW KITCHEN DRY STO 504A" },
+                    { "loop": 2, "address": 9, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966734897", "messages": "1ST FLR SMOKE OPEN SHOP STOR RM 513" },
+                    { "loop": 2, "address": 10, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966735016", "messages": "1ST FLR SMOKE NEW GYM N.PE STOR RM 545" },
+                    { "loop": 2, "address": 11, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966738673", "messages": "1ST FLR SMOKE NEW CAFE STOR RM 543" },
+                    { "loop": 2, "address": 12, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966738703", "messages": "1ST FLR SMOKE NEW GYM PE STORE RM 541" },
+                    { "loop": 2, "address": 13, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966739199", "messages": "1ST FLR SMOKE NEW BAND STOR RM 554" },
+                    { "loop": 2, "address": 14, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966738758", "messages": "1ST FLR SMOKE LGI A/V STORE ROOM 572" },
+                    { "loop": 2, "address": 15, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966739267", "messages": "1ST FLR SMOKE LGI A/V STORE ROOM 571" },
+                    { "loop": 2, "address": 16, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966741253", "messages": "1ST FLR SMOKE CUST STORE RM 601" },
+                    { "loop": 2, "address": 17, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966739328", "messages": "1ST FLR SMOKE MEDIA ROOM 600" },
+                    { "loop": 2, "address": 18, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966741383", "messages": "1ST FLR SMOKE CORR 603 CENTER" },
+                    { "loop": 2, "address": 19, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966741352", "messages": "1ST FLR SMOKE SCIENCE STOR RM 633" },
+                    { "loop": 2, "address": 20, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966738765", "messages": "1ST FLR SMOKE NW CONNECTING 643" },
+                    { "loop": 2, "address": 21, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966740232", "messages": "1ST FLR SMOKE SE CORR 642" },
+                    { "loop": 2, "address": 22, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966739113", "messages": "1ST FLR SMOKE QUAD D ROLL DOWN DOOR" },
+                    { "loop": 2, "address": 23, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966739205", "messages": "1ST FLR SMOKE MID SCH ELEV RM (UNSAFE)" },
+                    { "loop": 2, "address": 24, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966739304", "messages": "1ST FLR SMOKE SE CONNECTING LOBBY 643" },
+                    { "loop": 2, "address": 25, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966734965", "messages": "1ST FLR SMOKE MID SCH ELEV LOBBY" },
+                    { "loop": 2, "address": 26, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3977344696", "messages": "1ST FLR SMOKE HALL OUTSIDE ROOM 601" },
+                    { "loop": 2, "address": 27, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966740294", "messages": "1ST FLR SMOKE HALL OUTSIDE ROOM 616" },
+                    { "loop": 2, "address": 28, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966739229", "messages": "2ND FLR SMOKE MID SCH ELEV LOBBY" },
+                    { "loop": 2, "address": 29, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966739236", "messages": "1ST FLR SMOKE MID SCH SEVER ROOM 575" },
+                    { "loop": 2, "address": 30, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966734941", "messages": "1ST FLR SMOKE MID COMP ROOM 577" },
+                    { "loop": 2, "address": 31, "model": "SD", "deviceType": "Duct Supervisory Latching", "serialNumber": "3967911686", "messages": "2ND FLOOR DUCT BATHRM 626 RTU 5" },
+                    { "loop": 2, "address": 32, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966737911", "messages": "1ST FLR SMOKE QUAD A LOBBY 670" },
+                    { "loop": 2, "address": 33, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3981166949", "messages": "1ST FLR SMOKE QUAD A ELEV. LOBBY" },
+                    { "loop": 2, "address": 34, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966738659", "messages": "1ST FLR SMOKE QUAD A LOBBY 670" },
+                    { "loop": 2, "address": 35, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966739120", "messages": "1ST FLR SMOKE QUAD A ROLL DOWN DOOR" },
+                    { "loop": 2, "address": 36, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966740683", "messages": "1ST FLR SMOKE QUAD B CORR 133" },
+                    { "loop": 2, "address": 37, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966739069", "messages": "1ST FLR SMOKE QUAD B CORR 133" },
+                    { "loop": 2, "address": 38, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966740447", "messages": "1ST FLR SMOKE QUAD B CORR 133" },
+                    { "loop": 2, "address": 39, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966737973", "messages": "1ST FLR SMOKE QUAD B CORR 133" },
+                    { "loop": 2, "address": 40, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966734880", "messages": "1ST FLR SMOKE QUAD B CORR 133" },
+                    { "loop": 2, "address": 41, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966738697", "messages": "1ST FLR SMOKE QUAD B BY STAIR 223" },
+                    { "loop": 2, "address": 42, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966739243", "messages": "1ST FLR SMOKE QUAD B BY STAIR 683" },
+                    { "loop": 2, "address": 43, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3994711235", "messages": "1ST FLR SMOKE QUAD B COOR TO QUAD C" },
+                    { "loop": 2, "address": 44, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966739144", "messages": "1ST FLR SMOKE QUAD B CORR BY STAIRS 683" },
+                    { "loop": 2, "address": 46, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966738604", "messages": "1ST FLR SMOKE QUAD A SMOKE DOOR" },
+                    { "loop": 2, "address": 47, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966737959", "messages": "2ND FLR SMOKE QUAD B CORR 221" },
+                    { "loop": 2, "address": 48, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966738666", "messages": "2ND FLR SMOKE QUAD B CORR 221" },
+                    { "loop": 2, "address": 49, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966738505", "messages": "2ND FLR SMOKE QUAD B CORR 221" },
+                    { "loop": 2, "address": 50, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966740652", "messages": "2ND FLR SMOKE QUAD B CORR 221" },
+                    { "loop": 2, "address": 51, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966734248", "messages": "2ND FLR SMOKE QUAD B CORR 221" },
+                    { "loop": 2, "address": 52, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966728414", "messages": "1ST FLR SMOKE QUAD C CORR 131" },
+                    { "loop": 2, "address": 53, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966737966", "messages": "1ST FLR SMOKE B/C HALLWAY" },
+                    { "loop": 2, "address": 54, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3966884714", "messages": "2ND FLR SMOKE MIDDLE STAIR NORTH" },
+                    { "loop": 2, "address": 55, "model": "SD", "deviceType": "Duct Supervisory Latching", "serialNumber": "3941767483", "messages": "DUCT RTU-1 RETURN INSIDE ROOFTOP UNIT" },
+                    { "loop": 2, "address": 56, "model": "SD", "deviceType": "Duct Supervisory Latching", "serialNumber": "3979302045", "messages": "DUCT RTU-2 RETURN HALL BY ROOM 316" },
+                    { "loop": 2, "address": 126, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892111981", "messages": "1ST FLR PULL WEST HALL EXIT NORTH GYM" },
+                    { "loop": 2, "address": 127, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892067257", "messages": "MEZZ PULL WEST STAIRS" },
+                    { "loop": 2, "address": 128, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892111820", "messages": "1ST FLR PULL NORTH LOCKER ROOM 532" },
+                    { "loop": 2, "address": 129, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892067271", "messages": "1ST FLR PULL NORTH LOCKER ROOM 519" },
+                    { "loop": 2, "address": 130, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892111462", "messages": "1ST FLR PULL WEST LOADING DOCKS ENTRY" },
+                    { "loop": 2, "address": 131, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892088184", "messages": "1ST FLR PULL NORTH EXIT BY PRI BOIL RM" },
+                    { "loop": 2, "address": 132, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892114777", "messages": "1ST FLR PULL NORTH SIDE OF NEW STAGE" },
+                    { "loop": 2, "address": 133, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892111424", "messages": "1ST FLR PULL SOUTH SIDE OF NEW STAGE" },
+                    { "loop": 2, "address": 134, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892123441", "messages": "1ST FLR PULL SOUTH SW DOOR NEW GYM" },
+                    { "loop": 2, "address": 135, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892111806", "messages": "1ST FLR PULL SW EXIT NEW VOCAL RM 564" },
+                    { "loop": 2, "address": 136, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892110953", "messages": "1ST FLR PULL SW EXIT NEW BAND ROOM 556" },
+                    { "loop": 2, "address": 137, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892111417", "messages": "1ST FLR PULL SW EXIT NEW LOBBY 552" },
+                    { "loop": 2, "address": 138, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892123939", "messages": "1ST FLR PULL SW EXIT 6 GRD HALL 578" },
+                    { "loop": 2, "address": 139, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892112001", "messages": "1ST FLR PULL MID SCH SOUTH EXIT WEST" },
+                    { "loop": 2, "address": 140, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892111585", "messages": "1ST FLR PULL WEST EXIT CORR 603" },
+                    { "loop": 2, "address": 141, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892110960", "messages": "1ST FLR PULL WEST EXIT OUTSIDE RM 609" },
+                    { "loop": 2, "address": 142, "model": "278", "deviceType": "Pull Station", "serialNumber": "4899440695", "messages": "1ST FLR PULL WEST EXIT OUSIDE RM 639" },
+                    { "loop": 2, "address": 143, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892067288", "messages": "1ST FLR PULL WEST EXIT CONN LOBBY 643" },
+                    { "loop": 2, "address": 144, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892111899", "messages": "1ST FLR PULL EXIT TO COURTYARD" },
+                    { "loop": 2, "address": 145, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892110977", "messages": "PENTHOUSE PULL MECH ROOM" },
+                    { "loop": 2, "address": 146, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892111608", "messages": "MEZZ PULL UPPER WEST STAIRS" },
+                    { "loop": 2, "address": 147, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892112025", "messages": "MEZZ PULL UPPER EAST STAIRS" },
+                    { "loop": 2, "address": 148, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892110823", "messages": "1ST FLR PULL QUAD B SOUTH EXIT" },
+                    { "loop": 2, "address": 149, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892111929", "messages": "1ST FLR PULL QUAD B CORR SOUTH" },
+                    { "loop": 2, "address": 150, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892067295", "messages": "1ST FLR PULL QUAD B NORTH CORR" },
+                    { "loop": 2, "address": 151, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892111615", "messages": "1ST FLR PULL QUAD B SOUTH STAIR EXIT" },
+                    { "loop": 2, "address": 152, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892123946", "messages": "1ST FLR PULL QUAD B NORTH STAIR EXIT" },
+                    { "loop": 2, "address": 153, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892114821", "messages": "1ST FLR PULL QUAD A LOBBY 670" },
+                    { "loop": 2, "address": 154, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892111448", "messages": "1ST FLR PULL MID SCH UPPER HALL SOUTH" },
+                    { "loop": 2, "address": 155, "model": "CC1S", "deviceType": "Genesis Audible Visible Silence", "serialNumber": "5077757062", "messages": "1ST FLR NAC P.S. ROOM 547 CUST CLOSET" },
+                    { "loop": 2, "address": 156, "model": "CC1S", "deviceType": "Genesis Audible Visible Silence", "serialNumber": "5077858783", "messages": "1ST FLR NAC P.S. GRADE CLOSET 601" },
+                    { "loop": 2, "address": 157, "model": "CC1S", "deviceType": "Genesis Audible Visible Silence", "serialNumber": "5077842010", "messages": "1ST FLR NAC P.S. GRADE CLOSET 601" },
+                    { "loop": 2, "address": 158, "model": "278", "deviceType": "Pull Station", "serialNumber": "4892124042", "messages": "1ST FLR PULL QUAD B NORTH EXIT" },
+                    { "loop": 2, "address": 159, "model": "CT1", "deviceType": "Monitor", "serialNumber": "4809011373", "messages": "1ST FLR DOOR RELEASE GRADE SCHOOL ENTRY" },
+                    { "loop": 2, "address": 160, "model": "CR", "deviceType": "Relay Non-Silenceable", "serialNumber": "5207336242", "messages": "RELAY SAF-6 EAST LOADING DOCK" },
+                    { "loop": 2, "address": 161, "model": "CR", "deviceType": "Relay Non-Silenceable", "serialNumber": "5207336952", "messages": "1ST FLR RELAY ARA MAIN ENTRANCE" },
+                    { "loop": 2, "address": 162, "model": "CR", "deviceType": "Relay Non-Silenceable", "serialNumber": "5207314318", "messages": "PENTHOUSE RELAY SAF-2 NORTHWEST" },
+                    { "loop": 2, "address": 163, "model": "CR", "deviceType": "Relay Non-Silenceable", "serialNumber": "5207336181", "messages": "PENTHOUSE RELAY SAF-1 SOUTHEAST" },
+                    { "loop": 2, "address": 164, "model": "CR", "deviceType": "Relay Non-Silenceable", "serialNumber": "5207335825", "messages": "UPPER MEZZ RELAY SAF-5" },
+                    { "loop": 2, "address": 165, "model": "CR", "deviceType": "Relay Non-Silenceable", "serialNumber": "5205109435", "messages": "UPPER MEZZ RELAY SAF-3 MECH RM NW" },
+                    { "loop": 2, "address": 166, "model": "CR", "deviceType": "Relay Non-Silenceable", "serialNumber": "5205109862", "messages": "UPPER MEZZ RELAY SAF-4 MECH RM EAST" },
+                    { "loop": 2, "address": 167, "model": "CT1", "deviceType": "Alarm", "serialNumber": "4809366480", "messages": "NORTH KITCHEN HOOD ANSUL HOOD SYSTEM" },
+                    { "loop": 2, "address": 168, "model": "CR", "deviceType": "Relay Non-Silenceable", "serialNumber": "5205108940", "messages": "RTU 2 SHUTDOWN RELAY HALL BY ROOM 316" },
+                    { "loop": 2, "address": 169, "model": "CR", "deviceType": "Relay Non-Silenceable", "serialNumber": "5205106809", "messages": "RTU 1 SHUTDOWN RELAY HALL BY ROOM 313/314" },
+                    { "loop": 2, "address": 170, "model": "CR", "deviceType": "Relay Non-Silenceable", "serialNumber": "5205108964", "messages": "RELAY ARA PANEL EAST ENTRANCE" },
+                    { "loop": 2, "address": 171, "model": "CR", "deviceType": "Relay Non-Silenceable", "serialNumber": "5205110868", "messages": "2ND FLR RTU 5 SHUTDOWN RELAY" },
+                    { "loop": 2, "address": 172, "model": "CR", "deviceType": "Relay Non-Silenceable", "serialNumber": "5205111308", "messages": "1ST FLR QUAD A/D ROLLING DOOR RELAY" },
+                    { "loop": 2, "address": 173, "model": "CR", "deviceType": "Relay Non-Silenceable", "serialNumber": "5268203620", "messages": "1ST FLR MID SCH ELEV RM PRI RELAY" },
+                    { "loop": 2, "address": 174, "model": "CR", "deviceType": "Relay Non-Silenceable", "serialNumber": "5207709671", "messages": "1ST FLR MID SCH ELEV RM ALT RELAY" },
+                    { "loop": 2, "address": 175, "model": "CR", "deviceType": "Relay Non-Silenceable", "serialNumber": "5267912547", "messages": "1ST FLR MID SCH ELEV RM HAT RELAY" }
+                ]
+            },
+            {
+                "key": "waunakee_home_again",
+                "name": "Home Again Living - Waunakee",
+                "location": "1120 Connery Cove Waunakee, WI 53597",
+                "devices": [
+                    { "loop": "N/A", "address": 2, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Hall by Unit A021 /2" },
+                    { "loop": "N/A", "address": 3, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "In Unit A020/3" },
+                    { "loop": "N/A", "address": 4, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "In Unit A021/4" },
+                    { "loop": "N/A", "address": 5, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "In Unit A021 Bedroom/5" },
+                    { "loop": "N/A", "address": 6, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "In Unit A022 Living Room/6" },
+                    { "loop": "N/A", "address": 7, "model": "Rate Of Rise Heat Detector", "deviceType": "Rate Of Rise Heat Detector", "serialNumber": "N/A", "messages": "Inside Refuse Room/7" },
+                    { "loop": "N/A", "address": 8, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Hall by Unit A023 /8" },
+                    { "loop": "N/A", "address": 9, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Sprinkler Room A031/9" },
+                    { "loop": "N/A", "address": 10, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Movie Room / 10" },
+                    { "loop": "N/A", "address": 11, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Laundry Room in Storage Room / 11" },
+                    { "loop": "N/A", "address": 12, "model": "Rate Of Rise Heat Detector", "deviceType": "Rate Of Rise Heat Detector", "serialNumber": "N/A", "messages": "Laundry Room By Stair B / 12" },
+                    { "loop": "N/A", "address": 13, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A023 Living Room/13" },
+                    { "loop": "N/A", "address": 14, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A024 Living Room / 14" },
+                    { "loop": "N/A", "address": 15, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A028 Living Room/15" },
+                    { "loop": "N/A", "address": 16, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A028 Bedroom/16" },
+                    { "loop": "N/A", "address": 17, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Breakroom and Office/17" },
+                    { "loop": "N/A", "address": 18, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Storage Room By Unit A025/18" },
+                    { "loop": "N/A", "address": 19, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Outside Stairwell B/19" },
+                    { "loop": "N/A", "address": 20, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A025 Living Room / 20" },
+                    { "loop": "N/A", "address": 21, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Inside Stairwell B / 21" },
+                    { "loop": "N/A", "address": 22, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A020 Living Room/22" },
+                    { "loop": "N/A", "address": 23, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A020 West bedroom/23" },
+                    { "loop": "N/A", "address": 24, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A0219 Living Room / 24" },
+                    { "loop": "N/A", "address": 25, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A019 Bedroom/25" },
+                    { "loop": "N/A", "address": 26, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A018 Bedroom/26" },
+                    { "loop": "N/A", "address": 27, "model": "Rate Of Rise Heat Detector", "deviceType": "Rate Of Rise Heat Detector", "serialNumber": "N/A", "messages": "Parking Garage West/27" },
+                    { "loop": "N/A", "address": 28, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A018 Living Room/28" },
+                    { "loop": "N/A", "address": 29, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Hall by Unit A018 / 29" },
+                    { "loop": "N/A", "address": 30, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Elevator Lobby / 30" },
+                    { "loop": "N/A", "address": 31, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A017 Bedroom/31" },
+                    { "loop": "N/A", "address": 32, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A017Living Room / 32" },
+                    { "loop": "N/A", "address": 33, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A016 Living Room / 33" },
+                    { "loop": "N/A", "address": 34, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A016 Bedroom/34" },
+                    { "loop": "N/A", "address": 35, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A015 Bedroom / 35" },
+                    { "loop": "N/A", "address": 36, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Hall by Unit A016 /36" },
+                    { "loop": "N/A", "address": 37, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Pub/37" },
+                    { "loop": "N/A", "address": 38, "model": "Rate Of Rise Heat Detector", "deviceType": "Rate Of Rise Heat Detector", "serialNumber": "N/A", "messages": "Parking Garage Center / 38" },
+                    { "loop": "N/A", "address": 39, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A015 Living Room / 39" },
+                    { "loop": "N/A", "address": 40, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Hall by Unit A015 / 40" },
+                    { "loop": "N/A", "address": 41, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Game Room by Fire Place / 41" },
+                    { "loop": "N/A", "address": 42, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Club Room / 42" },
+                    { "loop": "N/A", "address": 43, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Salon Area / 43" },
+                    { "loop": "N/A", "address": 44, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "By Wellness Area / 44" },
+                    { "loop": "N/A", "address": 45, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A013 Living Room / 45" },
+                    { "loop": "N/A", "address": 46, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A013 Bedroom / 46" },
+                    { "loop": "N/A", "address": 47, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A012 Living Room / 47" },
+                    { "loop": "N/A", "address": 48, "model": "Rate Of Rise Heat Detector", "deviceType": "Rate Of Rise Heat Detector", "serialNumber": "N/A", "messages": "Parking Garage by Electrical panel / 48" },
+                    { "loop": "N/A", "address": 49, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A012 / 49" },
+                    { "loop": "N/A", "address": 50, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Inside Stairwell A / 50" },
+                    { "loop": "N/A", "address": 51, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A012 Bedroom / 51" },
+                    { "loop": "N/A", "address": 52, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Hall by Unit A011 / 52" },
+                    { "loop": "N/A", "address": 53, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Storage Room By Stair A / 53" },
+                    { "loop": "N/A", "address": 54, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A011 Living Room / 54" },
+                    { "loop": "N/A", "address": 55, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A011 Bedroom / 55" },
+                    { "loop": "N/A", "address": 56, "model": "Rate Of Rise Heat Detector", "deviceType": "Rate Of Rise Heat Detector", "serialNumber": "N/A", "messages": "Parking Garage By hall Door / 56" },
+                    { "loop": "N/A", "address": 57, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Memory Care Activity Room / 57" },
+                    { "loop": "N/A", "address": 58, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Memory Care by Fire Place / 58" },
+                    { "loop": "N/A", "address": 59, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Memory Care Unit M103 / 59" },
+                    { "loop": "N/A", "address": 60, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Memory Care Unit M104 / 60" },
+                    { "loop": "N/A", "address": 61, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Memory Care Unit M105 / 61" },
+                    { "loop": "N/A", "address": 62, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Memory Care Nurse Station / 62" },
+                    { "loop": "N/A", "address": 63, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Memory Care Unit M106 / 63" },
+                    { "loop": "N/A", "address": 64, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Memory Care Hall by Unit M106 / 64" },
+                    { "loop": "N/A", "address": 65, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Memory Care Med Room / 65" },
+                    { "loop": "N/A", "address": 66, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Memory Care Hall by Med Room / 66" },
+                    { "loop": "N/A", "address": 67, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Memory Care Janitor Room / 67" },
+                    { "loop": "N/A", "address": 68, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Memory Care Hall by Restroom / 68" },
+                    { "loop": "N/A", "address": 69, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Memory Care Unit M107 / 69" },
+                    { "loop": "N/A", "address": 70, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Memory Care Unit M108 / 70" },
+                    { "loop": "N/A", "address": 71, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Memory Care Hall by Unit M108 / 71" },
+                    { "loop": "N/A", "address": 72, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Memory Care Meeting Room / 72" },
+                    { "loop": "N/A", "address": 73, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Memory Care Dining Room / 73" },
+                    { "loop": "N/A", "address": 74, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Memory Care Mechanical Room / 74" },
+                    { "loop": "N/A", "address": 75, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Memory Care By Mechanical Room / 75" },
+                    { "loop": "N/A", "address": 76, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Memory Care Unit M109 / 76" },
+                    { "loop": "N/A", "address": 77, "model": "Rate Of Rise Heat Detector", "deviceType": "Rate Of Rise Heat Detector", "serialNumber": "N/A", "messages": "Memory Care Laundry Room / 77" },
+                    { "loop": "N/A", "address": 78, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Memory Care Storage Room / 78" },
+                    { "loop": "N/A", "address": 79, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Memory Care Hall by Storage / 79" },
+                    { "loop": "N/A", "address": 80, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Memory Care Unit M110 / 80" },
+                    { "loop": "N/A", "address": 81, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Memory Care Unit M111 / 81" },
+                    { "loop": "N/A", "address": 82, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Memory Care M112 / 82" },
+                    { "loop": "N/A", "address": 83, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Memory Care M113 / 83" },
+                    { "loop": "N/A", "address": 84, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Memory Care M114 / 84" },
+                    { "loop": "N/A", "address": 85, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Memory Care Pantry / 85" },
+                    { "loop": "N/A", "address": 86, "model": "Rate Of Rise Heat Detector", "deviceType": "Rate Of Rise Heat Detector", "serialNumber": "N/A", "messages": "Kitchen / 86" },
+                    { "loop": "N/A", "address": 87, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Private Dining Room / 87" },
+                    { "loop": "N/A", "address": 88, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Dining Area / 88" },
+                    { "loop": "N/A", "address": 89, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Dining Area By Fire Place / 89" },
+                    { "loop": "N/A", "address": 90, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Activity Area / 90" },
+                    { "loop": "N/A", "address": 91, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Activity Area by Mechanical Room / 91" },
+                    { "loop": "N/A", "address": 92, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A108 Bedroom / 92" },
+                    { "loop": "N/A", "address": 93, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A108 Living Room / 93" },
+                    { "loop": "N/A", "address": 94, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A116 Living Room / 94" },
+                    { "loop": "N/A", "address": 95, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A116 Bedroom / 95" },
+                    { "loop": "N/A", "address": 96, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A117 Living Room / 96" },
+                    { "loop": "N/A", "address": 97, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A117 / 97" },
+                    { "loop": "N/A", "address": 98, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A107 Living Room / 98" },
+                    { "loop": "N/A", "address": 99, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A107 Bedroom / 99" },
+                    { "loop": "N/A", "address": 100, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A106 Living Room / 100" },
+                    { "loop": "N/A", "address": 101, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "A106 Bedroom / 101" },
+                    { "loop": "N/A", "address": 102, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A117 Bedroom / 102" },
+                    { "loop": "N/A", "address": 103, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A117 Living Room / 103" },
+                    { "loop": "N/A", "address": 104, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A118 Living Room / 104" },
+                    { "loop": "N/A", "address": 105, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A119 Living Room / 105" },
+                    { "loop": "N/A", "address": 106, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A 118 Bedroom / 106" },
+                    { "loop": "N/A", "address": 107, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Elevator Lobby / 107" },
+                    { "loop": "N/A", "address": 108, "model": "Rate Of Rise Heat Detector", "deviceType": "Rate Of Rise Heat Detector", "serialNumber": "N/A", "messages": "Laundry Room By Elevator / 108" },
+                    { "loop": "N/A", "address": 109, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Office by Vestibule / 109" },
+                    { "loop": "N/A", "address": 110, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Office By WaterFall / 110" },
+                    { "loop": "N/A", "address": 111, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Hall by Restroom / 111" },
+                    { "loop": "N/A", "address": 112, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A120 Living Room / 112" },
+                    { "loop": "N/A", "address": 113, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A120 bedroom / 113" },
+                    { "loop": "N/A", "address": 114, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A121 Bedroom / 114" },
+                    { "loop": "N/A", "address": 115, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A122 West bedroom / 115" },
+                    { "loop": "N/A", "address": 116, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A121 Living Room / 116" },
+                    { "loop": "N/A", "address": 117, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A122 Living / 117" },
+                    { "loop": "N/A", "address": 118, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A122 Living Room / 118" },
+                    { "loop": "N/A", "address": 119, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A121 / 119" },
+                    { "loop": "N/A", "address": 120, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Med Room / 120" },
+                    { "loop": "N/A", "address": 121, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Nurse Station / 121" },
+                    { "loop": "N/A", "address": 122, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "A123 Living Room / 122" },
+                    { "loop": "N/A", "address": 123, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Hall by Unit A123 / 123" },
+                    { "loop": "N/A", "address": 124, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Vestibule By Nurse Station / 124" },
+                    { "loop": "N/A", "address": 125, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Sitting Room Area / 125" },
+                    { "loop": "N/A", "address": 126, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Hall by Unit A124 / 126" },
+                    { "loop": "N/A", "address": 127, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A124 / 127" },
+                    { "loop": "N/A", "address": 128, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A123 Bedroom / 128" },
+                    { "loop": "N/A", "address": 129, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A125 / 129" },
+                    { "loop": "N/A", "address": 130, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A130 Living Room / 130" },
+                    { "loop": "N/A", "address": 131, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A130 Bedroom / 131" },
+                    { "loop": "N/A", "address": 132, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A126 / 132" },
+                    { "loop": "N/A", "address": 133, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Hall By Unit A126 / 133" },
+                    { "loop": "N/A", "address": 134, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A129 / 134" },
+                    { "loop": "N/A", "address": 135, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A127 / 135" },
+                    { "loop": "N/A", "address": 136, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Outside Stairwell B / 136" },
+                    { "loop": "N/A", "address": 137, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A128 / 137" },
+                    { "loop": "N/A", "address": 138, "model": "Manual Pull Station", "deviceType": "Manual Pull Station", "serialNumber": "N/A", "messages": "Memory Care Vestibule / 138" },
+                    { "loop": "N/A", "address": 139, "model": "Manual Pull Station", "deviceType": "Manual Pull Station", "serialNumber": "N/A", "messages": "MC Exterior Door by Vestibule / 139" },
+                    { "loop": "N/A", "address": 142, "model": "Manual Pull Station", "deviceType": "Manual Pull Station", "serialNumber": "N/A", "messages": "Kitchen Exterior Door / 142" },
+                    { "loop": "N/A", "address": 143, "model": "Manual Pull Station", "deviceType": "Manual Pull Station", "serialNumber": "N/A", "messages": "Activity Room Exterior Door / 143" },
+                    { "loop": "N/A", "address": 149, "model": "Manual Pull Station", "deviceType": "Manual Pull Station", "serialNumber": "N/A", "messages": "Balcony Exteriro Door / 149" },
+                    { "loop": "N/A", "address": 153, "model": "Manual Pull Station", "deviceType": "Manual Pull Station", "serialNumber": "N/A", "messages": "Front Vestibule P / 153" },
+                    { "loop": "N/A", "address": 159, "model": "Manual Pull Station", "deviceType": "Manual Pull Station", "serialNumber": "N/A", "messages": "Stairwell A Exterior Door / 159" },
+                    { "loop": "N/A", "address": 168, "model": "Manual Pull Station", "deviceType": "Manual Pull Station", "serialNumber": "N/A", "messages": "Stairwell B Exterior Door / 168" },
+                    { "loop": "N/A", "address": 169, "model": "Manual Pull Station", "deviceType": "Manual Pull Station", "serialNumber": "N/A", "messages": "Club Room Exteriro Door / 169" },
+                    { "loop": "N/A", "address": 170, "model": "Manual Pull Station", "deviceType": "Manual Pull Station", "serialNumber": "N/A", "messages": "Hall bY Parking Garage / 170" },
+                    { "loop": "N/A", "address": 171, "model": "Manual Pull Station", "deviceType": "Manual Pull Station", "serialNumber": "N/A", "messages": "Parking G Exteriror Door / 171" },
+                    { "loop": "N/A", "address": 172, "model": "Manual Pull Station", "deviceType": "Manual Pull Station", "serialNumber": "N/A", "messages": "Refuse Room Exterior Door / 172" },
+                    { "loop": "N/A", "address": 180, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Library Room / 180" },
+                    { "loop": "N/A", "address": 181, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A223 Living Room / 181" },
+                    { "loop": "N/A", "address": 182, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A223 Bedroom / 182" },
+                    { "loop": "N/A", "address": 183, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Hall by Unit A219 / 183" },
+                    { "loop": "N/A", "address": 184, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A222 / 184" },
+                    { "loop": "N/A", "address": 185, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A 221 / 185" },
+                    { "loop": "N/A", "address": 186, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Outside of Stairwell B / 186" },
+                    { "loop": "N/A", "address": 187, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "top of Stairwell B / 187" },
+                    { "loop": "N/A", "address": 188, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A220 / 188" },
+                    { "loop": "N/A", "address": 189, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A219 / 189" },
+                    { "loop": "N/A", "address": 190, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A218 / 190" },
+                    { "loop": "N/A", "address": 191, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A217 / 191" },
+                    { "loop": "N/A", "address": 192, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Hall by Unit A217 / 192" },
+                    { "loop": "N/A", "address": 193, "model": "Rate Of Rise Heat Detector", "deviceType": "Rate Of Rise Heat Detector", "serialNumber": "N/A", "messages": "Laundry Room / 193" },
+                    { "loop": "N/A", "address": 194, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A216 Bedroom / 194" },
+                    { "loop": "N/A", "address": 195, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A216 Living Room / 195" },
+                    { "loop": "N/A", "address": 196, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Sitting Room / 196" },
+                    { "loop": "N/A", "address": 197, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Hall by A215 / 197" },
+                    { "loop": "N/A", "address": 198, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A215 North Bedroom / 198" },
+                    { "loop": "N/A", "address": 199, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A215 Living Room / 199" },
+                    { "loop": "N/A", "address": 200, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A 215 west Bedroom / 200" },
+                    { "loop": "N/A", "address": 201, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A214 Living Room / 201" },
+                    { "loop": "N/A", "address": 202, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A214 bedroom / 202" },
+                    { "loop": "N/A", "address": 203, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A213 Bedroom / 203" },
+                    { "loop": "N/A", "address": 204, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A213 Living Room / 204" },
+                    { "loop": "N/A", "address": 205, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A212 Living Room / 205" },
+                    { "loop": "N/A", "address": 206, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A212 Bedroom / 206" },
+                    { "loop": "N/A", "address": 207, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Hall By Unit A / 207" },
+                    { "loop": "N/A", "address": 208, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Elevator Lobby / 208" },
+                    { "loop": "N/A", "address": 210, "model": "Rate Of Rise Heat Detector", "deviceType": "Rate Of Rise Heat Detector", "serialNumber": "N/A", "messages": "Elevator Shaft / 210" },
+                    { "loop": "N/A", "address": 211, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Meeting Room / 211" },
+                    { "loop": "N/A", "address": 212, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A202 Living Room / 212" },
+                    { "loop": "N/A", "address": 213, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A206 Bedroom / 213" },
+                    { "loop": "N/A", "address": 214, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A202 Bedroom / 214" },
+                    { "loop": "N/A", "address": 215, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A211 Living Room / 215" },
+                    { "loop": "N/A", "address": 216, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A211 Bedroom / 216" },
+                    { "loop": "N/A", "address": 217, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A210 Bedroom / 217" },
+                    { "loop": "N/A", "address": 218, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A210 Living Room / 218" },
+                    { "loop": "N/A", "address": 219, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Hall by Unit 210 / 219" },
+                    { "loop": "N/A", "address": 220, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A203 Bedroom / 220" },
+                    { "loop": "N/A", "address": 221, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A203 Living Room / 221" },
+                    { "loop": "N/A", "address": 222, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A204 Living Room / 222" },
+                    { "loop": "N/A", "address": 223, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A204 Bedroom / 223" },
+                    { "loop": "N/A", "address": 224, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Hall by Unit A209 / 224" },
+                    { "loop": "N/A", "address": 225, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A209 Living Room / 225" },
+                    { "loop": "N/A", "address": 226, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A209 bedroom / 226" },
+                    { "loop": "N/A", "address": 227, "model": "Rate Of Rise Heat Detector", "deviceType": "Rate Of Rise Heat Detector", "serialNumber": "N/A", "messages": "Laundry Room By Unit A205 / 227" },
+                    { "loop": "N/A", "address": 228, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Mec Room Above FACP / 228" },
+                    { "loop": "N/A", "address": 229, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Outside Stariwell A / 229" },
+                    { "loop": "N/A", "address": 230, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Top oF Stairwell A / 230" },
+                    { "loop": "N/A", "address": 231, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A206 Living Room / 231" },
+                    { "loop": "N/A", "address": 232, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A205 Living Room / 232" },
+                    { "loop": "N/A", "address": 235, "model": "Manual Pull Station", "deviceType": "Manual Pull Station", "serialNumber": "N/A", "messages": "Outside Stairwell A / 235" },
+                    { "loop": "N/A", "address": 238, "model": "Manual Pull Station", "deviceType": "Manual Pull Station", "serialNumber": "N/A", "messages": "Outside Stairwell B / 238" },
+                    { "loop": "N/A", "address": 259, "model": "Manual Pull Station", "deviceType": "Manual Pull Station", "serialNumber": "N/A", "messages": "Memory Care Dining Ext / 259" },
+                    { "loop": "N/A", "address": 260, "model": "Manual Pull Station", "deviceType": "Manual Pull Station", "serialNumber": "N/A", "messages": "Private Dining Room / 260" },
+                    { "loop": "N/A", "address": 261, "model": "Photo Smoke Detector", "deviceType": "Photo Smoke Detector", "serialNumber": "N/A", "messages": "Unit A205 Bedroom / 261" },
+                    { "loop": "N/A", "address": 268, "model": "Rate Of Rise Heat Detector", "deviceType": "Rate Of Rise Heat Detector", "serialNumber": "N/A", "messages": "Laundry Room / 268" },
+                    { "loop": "N/A", "address": "N/A", "model": "Sprinkler Water Flow Switch", "deviceType": "Sprinkler Water Flow Switch", "serialNumber": "N/A", "messages": "Basement / main sprinkler room" },
+                    { "loop": "N/A", "address": "N/A", "model": "Sprinkler Water Flow Switch", "deviceType": "Sprinkler Water Flow Switch", "serialNumber": "N/A", "messages": "2nd / facp room" },
+                    { "loop": "N/A", "address": "N/A", "model": "Sprinkler Tamper Switch / Valve", "deviceType": "Sprinkler Tamper Switch / Valve", "serialNumber": "N/A", "messages": "Basement / main sprinkler room / lower valve" },
+                    { "loop": "N/A", "address": "N/A", "model": "Sprinkler Tamper Switch / Valve", "deviceType": "Sprinkler Tamper Switch / Valve", "serialNumber": "N/A", "messages": "Basement / main sprinkler room / upper valve" },
+                    { "loop": "N/A", "address": "N/A", "model": "Low Air Switch", "deviceType": "Low Air Switch", "serialNumber": "N/A", "messages": "2nd / facp room" },
+                    { "loop": "N/A", "address": "N/A", "model": "Sprinkler Tamper Switch / Valve", "deviceType": "Sprinkler Tamper Switch / Valve", "serialNumber": "N/A", "messages": "2nd / main control / facp room" },
+                    { "loop": "N/A", "address": "N/A", "model": "Door Holder", "deviceType": "Door Holder", "serialNumber": "N/A", "messages": "1st / memory care north" },
+                    { "loop": "N/A", "address": "N/A", "model": "Door Holder", "deviceType": "Door Holder", "serialNumber": "N/A", "messages": "1st / memory care south" },
+                    { "loop": "N/A", "address": "N/A", "model": "Audible", "deviceType": "Audible", "serialNumber": "N/A", "messages": "all units have audio" },
+                    { "loop": "N/A", "address": "N/A", "model": "Audible And Visible", "deviceType": "Audible And Visible", "serialNumber": "N/A", "messages": "1st / memory care commons 9 devices" },
+                    { "loop": "N/A", "address": "N/A", "model": "Audible And Visible", "deviceType": "Audible And Visible", "serialNumber": "N/A", "messages": "1st / common areas 11 devices" },
+                    { "loop": "N/A", "address": "N/A", "model": "Audible And Visible", "deviceType": "Audible And Visible", "serialNumber": "N/A", "messages": "2nd / common areas 11 devices" },
+                    { "loop": "N/A", "address": "N/A", "model": "Audible And Visible", "deviceType": "Audible And Visible", "serialNumber": "N/A", "messages": "Basement / common areas 11 devices" },
+                    { "loop": "N/A", "address": "N/A", "model": "Battery", "deviceType": "Battery", "serialNumber": "N/A", "messages": "facp / 12V12AH (FAS1105)" },
+                    { "loop": "N/A", "address": "N/A", "model": "Battery", "deviceType": "Battery", "serialNumber": "N/A", "messages": "facp / 12V12AH (FAS1105)" },
+                    { "loop": "N/A", "address": "N/A", "model": "Battery", "deviceType": "Battery", "serialNumber": "N/A", "messages": "nac by facp / 12V12AH (FAS1105)" },
+                    { "loop": "N/A", "address": "N/A", "model": "Battery", "deviceType": "Battery", "serialNumber": "N/A", "messages": "nac by facp / 12V12AH (FAS1105)" },
+                    { "loop": "N/A", "address": "N/A", "model": "Battery", "deviceType": "Battery", "serialNumber": "N/A", "messages": "Nac right of furnace / 12V7AH (FAS1075)" },
+                    { "loop": "N/A", "address": "N/A", "model": "Battery", "deviceType": "Battery", "serialNumber": "N/A", "messages": "Nac right of furnace / 12V7AH (FAS1075)" },
+                    { "loop": "N/A", "address": "N/A", "model": "Battery", "deviceType": "Battery", "serialNumber": "N/A", "messages": "Nac lower left of furnace / 12V7AH (FAS1075)" },
+                    { "loop": "N/A", "address": "N/A", "model": "Battery", "deviceType": "Battery", "serialNumber": "N/A", "messages": "Nac lower left of furnace / 12V7AH (FAS1075)" },
+                    { "loop": "N/A", "address": "N/A", "model": "Battery", "deviceType": "Battery", "serialNumber": "N/A", "messages": "Nac upper left of furnace / 12V12AH (FAS1105)" },
+                    { "loop": "N/A", "address": "N/A", "model": "Battery", "deviceType": "Battery", "serialNumber": "N/A", "messages": "Nac upper left of furnace / 12V12AH (FAS1105)" }
+                ]
+            }
+        ];
+
+        // --- UTILITIES ---
+        const $ = (selector, parent = document) => parent.querySelector(selector);
+        const $$ = (selector, parent = document) => parent.querySelectorAll(selector);
+
+        function debounce(func, delay = 250) {
+            let timeoutId;
+            return (...args) => {
+                clearTimeout(timeoutId);
+                timeoutId = setTimeout(() => {
+                    func.apply(this, args);
+                }, delay);
+            };
+        }
+
+        function escapeHTML(str) {
+            if (str === null || str === undefined) return '';
+            const p = document.createElement('p');
+            p.textContent = String(str);
+            return p.innerHTML;
+        }
+
+        /**
+         * Normalizes device data from different sources into a consistent format.
+         */
+        function normalizeDevice(device) {
+            // This function handles different potential structures for a device object.
+            const isExcelFormat = device.hasOwnProperty('System Address ( Node : Card : Device )');
+            if (isExcelFormat) {
+                const systemAddress = device['System Address ( Node : Card : Device )'] || 'N/A:N/A:N/A';
+                const addressParts = String(systemAddress).split(':');
+                return {
+                    loop: addressParts.length > 1 ? addressParts[1].trim() : '',
+                    address: addressParts.length > 2 ? addressParts[2].trim() : '',
+                    systemAddress: systemAddress,
+                    model: device['SKU'] || '',
+                    deviceType: device['SKU Description'] || '',
+                    deviceTypeID: device['Device Type ID'] || '',
+                    serialNumber: device['Serial Number'] || '',
+                    messages: (device['Location Text'] || '').replace(/\n/g, ' '),
+                };
+            } else {
+                // This handles the original hardcoded format and the exported JSON format.
+                return {
+                    loop: device.loop || '',
+                    address: device.address || '',
+                    systemAddress: device.systemAddress || '',
+                    model: device.model || '',
+                    deviceType: device.deviceType || '',
+                    deviceTypeID: device.deviceTypeID || '',
+                    serialNumber: device.serialNumber || '',
+                    messages: device.messages || '',
+                };
+            }
+        }
+
+        /**
+         * Shows a temporary notification toast.
+         */
+        function showToast(message, type = 'info') {
+            const container = $('#toast-container');
+            if (!container) return;
+            const toastId = `toast-${Date.now()}`;
+            const colors = {
+                success: 'bg-green-500 dark:bg-green-600',
+                error: 'bg-red-500 dark:bg-red-600',
+                info: 'bg-sky-500 dark:bg-sky-600',
+            };
+            const toast = document.createElement('div');
+            toast.id = toastId;
+            toast.className = `transform transition-all duration-300 ease-out translate-y-4 opacity-0 p-4 rounded-lg shadow-lg text-white ${colors[type] || colors.info}`;
+            toast.setAttribute('role', 'alert');
+            toast.innerHTML = `<p class="font-semibold">${escapeHTML(message)}</p>`;
+            container.appendChild(toast);
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-4', 'opacity-0');
+            });
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-x-full');
+                toast.addEventListener('transitionend', () => toast.remove());
+            }, 5000);
+        }
+
+        // --- MODAL LOGIC ---
+        const modal = $('#confirmation-modal');
+        const modalPanel = $('#confirmation-modal-panel');
+        const confirmButton = $('#modal-confirm-button');
+        const cancelButton = $('#modal-cancel-button');
+        const modalMessage = $('#modal-message');
+        let confirmCallback = null;
+        
+        function showConfirmationModal(message, onConfirm) {
+            if (!modal) return;
+            modalMessage.textContent = message;
+            confirmCallback = onConfirm;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            requestAnimationFrame(() => {
+                modalPanel.classList.remove('opacity-0', 'translate-y-4', 'sm:translate-y-0', 'sm:scale-95');
+            });
+        }
+        
+        function hideConfirmationModal() {
+             if (!modal) return;
+             modalPanel.classList.add('opacity-0', 'translate-y-4', 'sm:translate-y-0', 'sm:scale-95');
+             modal.addEventListener('transitionend', () => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+             }, { once: true });
+             confirmCallback = null;
+        }
+        confirmButton.addEventListener('click', () => {
+            if (typeof confirmCallback === 'function') confirmCallback();
+            hideConfirmationModal();
+        });
+        cancelButton.addEventListener('click', hideConfirmationModal);
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) hideConfirmationModal();
+        });
+
+        // --- WEB COMPONENTS ---
+        
+        // --- BuildingPicker Web Component ---
+        class BuildingPicker extends HTMLElement {
+            constructor() {
+                super();
+                this.isMobile = window.innerWidth < 640;
+                this.checklists = CHECKLISTS || [];
+            }
+            connectedCallback() {
+                this.render();
+                this.attachEventListeners();
+                window.addEventListener('resize', debounce(() => this.handleResize(), 200));
+            }
+            render() {
+                const containerId = this.isMobile ? '#mobile-building-picker-container' : '#desktop-building-picker-container';
+                const otherContainerId = this.isMobile ? '#desktop-building-picker-container' : '#mobile-building-picker-container';
+                const container = $(containerId);
+                const otherContainer = $(otherContainerId);
+                if (!container) return;
+                container.innerHTML = this.isMobile ? this.getMobileHTML() : this.getDesktopHTML();
+                if (otherContainer) otherContainer.innerHTML = '';
+                this.attachEventListeners();
+            }
+            getMobileHTML() {
+                 if (this.checklists.length === 0) return `<p class="text-center text-sm text-slate-500">No checklists available.</p>`;
+                return `
+                    <label for="building-select" class="sr-only">Select Checklist</label>
+                    <select id="building-select" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 focus-ring sm:text-sm">
+                        <option value="">-- Select a Checklist --</option>
+                        ${this.checklists.map(c => `<option value="${c.key}">${escapeHTML(c.name)}</option>`).join('')}
+                    </select>
+                `;
+            }
+            getDesktopHTML() {
+                 return `
+                    <div class="sticky top-20">
+                        <div class="bg-white dark:bg-slate-900 rounded-xl shadow p-4">
+                            <h2 class="text-lg font-semibold mb-3">Checklists</h2>
+                             <input type="search" id="building-search" placeholder="Search checklists..." class="mb-3 block w-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md shadow-sm py-2 px-3 focus-ring sm:text-sm">
+                            <ul id="building-list" class="space-y-1 max-h-[calc(100vh-12rem)] overflow-y-auto">
+                                ${this.checklists.length === 0 ? `<li class="text-sm text-slate-500">No checklists available.</li>` : ''}
+                                ${this.checklists.map(c => `
+                                    <li>
+                                        <a href="#" data-key="${c.key}" class="block p-2 rounded-md hover:bg-sky-100 dark:hover:bg-sky-900/50 focus-ring font-medium text-slate-700 dark:text-slate-300">
+                                            ${escapeHTML(c.name)}
+                                        </a>
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    </div>
+                `;
+            }
+            attachEventListeners() {
+                const mobileSelect = $('#building-select');
+                if (mobileSelect) mobileSelect.addEventListener('change', (e) => { if (e.target.value) this.selectChecklist(e.target.value); });
+                const desktopList = $('#building-list');
+                if (desktopList) {
+                    desktopList.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const link = e.target.closest('a');
+                        if (link && link.dataset.key) {
+                            $$('a', desktopList).forEach(a => a.classList.remove('bg-sky-100', 'dark:bg-sky-900/50'));
+                            link.classList.add('bg-sky-100', 'dark:bg-sky-900/50');
+                            this.selectChecklist(link.dataset.key);
+                        }
+                    });
+                }
+                const searchInput = $('#building-search');
+                if (searchInput) searchInput.addEventListener('input', debounce((e) => this.filterChecklists(e.target.value), 200));
+            }
+            filterChecklists(query) {
+                const q = query.toLowerCase();
+                $$('#building-list li').forEach(li => {
+                    const link = li.querySelector('a');
+                    if (link) {
+                        const name = link.textContent.toLowerCase();
+                        li.style.display = name.includes(q) ? '' : 'none';
+                    }
+                });
+            }
+            selectChecklist(key) {
+                document.dispatchEvent(new CustomEvent('checklist-selected', { detail: { key } }));
+            }
+            handleResize() {
+                const newIsMobile = window.innerWidth < 640;
+                if (newIsMobile !== this.isMobile) {
+                    this.isMobile = newIsMobile;
+                    this.render();
+                }
+            }
+        }
+        customElements.define('building-picker', BuildingPicker);
+        
+        
+        // --- ChecklistWorkspace Web Component ---
+        class ChecklistWorkspace extends HTMLElement {
+            constructor() {
+                super();
+                this.data = null;
+                this.checklistKey = null;
+                this.sortState = { key: 'address', dir: 'asc' };
+                this.state = {
+                    checkedDevices: new Set(),
+                    checkHistory: [],
+                };
+                // Bind 'this' for event handlers that are added/removed
+                this.handleMenuAction = this.handleMenuAction.bind(this);
+                this.handleSortChange = this.handleSortChange.bind(this);
+                this.handleFileImport = this.handleFileImport.bind(this);
+            }
+            
+            static get observedAttributes() { return ['building-key']; }
+
+            connectedCallback() {
+                document.addEventListener('request-workspace-action', this.handleMenuAction);
+                // Listen for file import
+                this.fileInput = $('#import-file-input');
+                if (this.fileInput) {
+                    this.fileInput.addEventListener('change', this.handleFileImport);
+                }
+            }
+
+            disconnectedCallback() {
+                document.removeEventListener('request-workspace-action', this.handleMenuAction);
+                 if (this.fileInput) {
+                    this.fileInput.removeEventListener('change', this.handleFileImport);
+                }
+            }
+
+            attributeChangedCallback(name, oldValue, newValue) {
+                if (name === 'building-key' && oldValue !== newValue) {
+                    this.checklistKey = newValue;
+                    this.loadChecklist();
+                }
+            }
+            
+            getUniqueDeviceId(device) {
+                // IMPORTANT: This function's logic must remain consistent to avoid
+                // invalidating users' saved progress in localStorage.
+                // It creates a unique ID from stable device properties.
+                return `${this.checklistKey}-${device.serialNumber}-${device.loop}-${device.address}-${device.messages}`;
+            }
+
+            loadChecklist() {
+                this.innerHTML = `<div class="text-center py-20">Loading checklist...</div>`;
+                try {
+                    const checklistData = CHECKLISTS.find(c => c.key === this.checklistKey);
+                    if (!checklistData) throw new Error("Checklist not found.");
+                    
+                    this.data = JSON.parse(JSON.stringify(checklistData));
+                    this.data.devices = this.data.devices.map(device => normalizeDevice(device));
+                    
+                    this.loadInspectedState();
+                    this.render();
+                } catch (error) {
+                    showToast(error.message, 'error');
+                    this.innerHTML = `<div class="text-center py-20 text-red-500">${escapeHTML(error.message)}</div>`;
+                    console.error("Failed to load checklist:", error);
+                }
+            }
+            
+            loadInspectedState() {
+                const savedState = localStorage.getItem(`checklistState_${this.checklistKey}`);
+                if (savedState) {
+                    const parsed = JSON.parse(savedState);
+                    this.state.checkedDevices = new Set(parsed.checked || []);
+                    this.state.checkHistory = parsed.history || [];
+                } else {
+                    this.state.checkedDevices.clear();
+                    this.state.checkHistory = [];
+                }
+                this.updateLastCheckedFooter();
+            }
+
+            saveInspectedState() {
+                const appState = {
+                    checked: Array.from(this.state.checkedDevices),
+                    history: this.state.checkHistory
+                };
+                localStorage.setItem(`checklistState_${this.checklistKey}`, JSON.stringify(appState));
+            }
+
+            render() {
+                if (!this.data) return;
+                this.innerHTML = `
+                    <div class="bg-white dark:bg-slate-900 rounded-xl shadow-lg">
+                        <header class="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-800">
+                           <h2 class="text-2xl sm:text-3xl font-bold tracking-tight">${escapeHTML(this.data.name)}</h2>
+                           <p class="text-slate-500 dark:text-slate-400">${escapeHTML(this.data.location)}</p>
+                        </header>
+                        <div id="checklist-content" class="p-2 sm:p-6"></div>
+                    </div>
+                `;
+                this.updateUI();
+                this.attachEventListeners();
+            }
+
+            renderChecklistContent() {
+                const currentSortValue = `${this.sortState.key}-${this.sortState.dir}`;
+                
+                return `
+                    <div class="space-y-4">
+                        <div id="progress-container"></div>
+                        
+                        <!-- Search and Sort Controls -->
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-2 sm:p-0">
+                            <div class="relative flex-grow">
+                                <label for="search-input" class="sr-only">Search Devices</label>
+                                <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                                   <svg class="h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd" /></svg>
+                                </div>
+                                <input type="search" id="search-input" placeholder="Search all devices..." class="block w-full bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-700 rounded-md shadow-sm py-2 pl-10 pr-4 focus-ring sm:text-sm">
+                            </div>
+                            <div class="flex items-center gap-2 sm:hidden">
+                                <label for="sort-select" class="text-sm font-medium text-slate-600 dark:text-slate-300">Sort by:</label>
+                                <select id="sort-select" class="w-full sm:w-auto bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 focus-ring text-sm">
+                                    <option value="address-asc" ${currentSortValue === 'address-asc' ? 'selected' : ''}>Address (Asc)</option>
+                                    <option value="address-desc" ${currentSortValue === 'address-desc' ? 'selected' : ''}>Address (Desc)</option>
+                                    <option value="messages-asc" ${currentSortValue === 'messages-asc' ? 'selected' : ''}>Location (A-Z)</option>
+                                    <option value="messages-desc" ${currentSortValue === 'messages-desc' ? 'selected' : ''}>Location (Z-A)</option>
+                                    <option value="deviceType-asc" ${currentSortValue === 'deviceType-asc' ? 'selected' : ''}>Type (A-Z)</option>
+                                    <option value="deviceType-desc" ${currentSortValue === 'deviceType-desc' ? 'selected' : ''}>Type (Z-A)</option>
+                                    <option value="serialNumber-asc" ${currentSortValue === 'serialNumber-asc' ? 'selected' : ''}>Serial # (Asc)</option>
+                                    <option value="serialNumber-desc" ${currentSortValue === 'serialNumber-desc' ? 'selected' : ''}>Serial # (Desc)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div id="completed-container"></div>
+                        <div id="active-container"></div>
+                    </div>
+                `;
+            }
+
+            updateProgress() {
+                const container = $(`#progress-container`, this);
+                if (!container) return;
+                const total = this.data.devices.length;
+                const inspectedCount = this.state.checkedDevices.size;
+                const percent = total > 0 ? Math.round((inspectedCount / total) * 100) : 0;
+                container.innerHTML = `
+                    <div class="flex justify-between items-center mb-1 text-sm font-medium px-2 sm:px-0">
+                        <span class="text-slate-600 dark:text-slate-300">Progress</span>
+                        <span>${inspectedCount} / ${total} inspected (${percent}%)</span>
+                    </div>
+                    <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5">
+                        <div class="bg-sky-600 h-2.5 rounded-full transition-all duration-500" style="width: ${percent}%"></div>
+                    </div>
+                `;
+            }
+
+            renderTableAndAccordion() {
+                const contentContainer = $('#checklist-content', this);
+                if (!contentContainer) return;
+                
+                const searchInput = $('#search-input', this);
+                const currentSearchQuery = searchInput ? searchInput.value : '';
+
+                contentContainer.innerHTML = this.renderChecklistContent();
+                
+                let allDevices = [...this.data.devices];
+                
+                allDevices.sort((a, b) => {
+                    const dir = this.sortState.dir === 'asc' ? 1 : -1;
+                    const key = this.sortState.key;
+                    const loopA = isNaN(parseInt(a.loop)) ? Infinity : parseInt(a.loop);
+                    const loopB = isNaN(parseInt(b.loop)) ? Infinity : parseInt(b.loop);
+                    if (loopA !== loopB) return (loopA - loopB) * dir;
+                    const valA = a[key];
+                    const valB = b[key];
+                    if (key === 'address' || key === 'serialNumber') {
+                        const numA = parseInt(valA, 10) || 0;
+                        const numB = parseInt(valB, 10) || 0;
+                        return (numA - numB) * dir;
+                    } else {
+                        const strA = String(valA || '').toLowerCase();
+                        const strB = String(valB || '').toLowerCase();
+                        return strA.localeCompare(strB, undefined, { sensitivity: 'base' }) * dir;
+                    }
+                });
+                
+                const inspectedDevices = allDevices.filter(d => this.state.checkedDevices.has(this.getUniqueDeviceId(d)));
+                const activeDevices = allDevices.filter(d => !this.state.checkedDevices.has(this.getUniqueDeviceId(d)));
+                
+                $(`#completed-container`, this).innerHTML = this.renderAccordionHTML(inspectedDevices);
+                $(`#active-container`, this).innerHTML = this.renderListHTML(activeDevices);
+                
+                this.updateProgress();
+
+                const newSearchInput = $('#search-input', this);
+                if (newSearchInput && currentSearchQuery) {
+                    newSearchInput.value = currentSearchQuery;
+                    this.filterTable(currentSearchQuery);
+                } else {
+                     this.updateDeviceCounter();
+                }
+            }
+
+            renderAccordionHTML(devices) {
+                if (devices.length === 0) return '';
+                return `
+                    <div class="border border-slate-200 dark:border-slate-800 rounded-lg">
+                        <button aria-expanded="false" aria-controls="completed-list" class="accordion-toggle w-full flex justify-between items-center p-3 font-semibold text-sm bg-slate-100 dark:bg-slate-800/80 rounded-t-lg focus-ring">
+                           <span>Completed Devices (${devices.length})</span>
+                           <svg class="accordion-arrow w-5 h-5 transition-transform" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                        </button>
+                        <div id="completed-list" class="hidden">
+                            ${this.renderListHTML(devices, false)}
+                        </div>
+                    </div>
+                `;
+            }
+
+            getSortIcon(key) {
+                if (this.sortState.key !== key) {
+                    return `<svg class="sort-icon inline-block w-4 h-4 ml-1 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4"></path></svg>`;
+                }
+                if (this.sortState.dir === 'asc') {
+                    return `<svg class="sort-icon inline-block w-4 h-4 ml-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clip-rule="evenodd"></path></svg>`;
+                } else {
+                    return `<svg class="sort-icon inline-block w-4 h-4 ml-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>`;
+                }
+            }
+            
+            renderListHTML(devices, showHeader = true) {
+                return `
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left">
+                           ${showHeader ? `
+                            <thead class="text-xs text-slate-700 dark:text-slate-300 uppercase bg-slate-50 dark:bg-slate-800 hidden sm:table-header-group">
+                                <tr>
+                                    <th scope="col" class="p-3 table-header-sortable cursor-pointer" data-sort-key="loop" aria-sort="${this.sortState.key === 'loop' ? (this.sortState.dir === 'asc' ? 'ascending' : 'descending') : 'none'}">Loop ${this.getSortIcon('loop')}</th>
+                                    <th scope="col" class="p-3 table-header-sortable cursor-pointer" data-sort-key="address" aria-sort="${this.sortState.key === 'address' ? (this.sortState.dir === 'asc' ? 'ascending' : 'descending') : 'none'}">Address ${this.getSortIcon('address')}</th>
+                                    <th scope="col" class="p-3 table-header-sortable cursor-pointer" data-sort-key="messages" aria-sort="${this.sortState.key === 'messages' ? (this.sortState.dir === 'asc' ? 'ascending' : 'descending') : 'none'}">Location/Message ${this.getSortIcon('messages')}</th>
+                                    <th scope="col" class="p-3 table-header-sortable cursor-pointer" data-sort-key="deviceType" aria-sort="${this.sortState.key === 'deviceType' ? (this.sortState.dir === 'asc' ? 'ascending' : 'descending') : 'none'}">Type ${this.getSortIcon('deviceType')}</th>
+                                    <th scope="col" class="p-3">Model/SKU</th>
+                                    <th scope="col" class="p-3 table-header-sortable cursor-pointer" data-sort-key="serialNumber" aria-sort="${this.sortState.key === 'serialNumber' ? (this.sortState.dir === 'asc' ? 'ascending' : 'descending') : 'none'}">Serial # ${this.getSortIcon('serialNumber')}</th>
+                                    <th scope="col" class="p-3 text-center">✅</th>
+                                </tr>
+                            </thead>` : ''}
+                            <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+                               ${devices.map(d => this.renderRowHTML(d)).join('') || `<tr class="device-row"><td colspan="7" class="p-4 text-center text-slate-500">No devices to show.</td></tr>`}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+            
+            renderRowHTML(device) {
+                const uniqueId = this.getUniqueDeviceId(device);
+                const isInspected = this.state.checkedDevices.has(uniqueId);
+                
+                return `
+                    <tr data-device-id="${uniqueId}" class="device-row block sm:table-row cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 ${isInspected ? 'checked-item' : ''}">
+                        
+                        <!-- Mobile Card View -->
+                        <td class="sm:hidden w-full p-3">
+                            <div class="flex items-center justify-between gap-3 w-full">
+                                <div class="flex-grow space-y-2">
+                                    <div>
+                                        <p class="font-semibold text-slate-800 dark:text-slate-100 leading-tight checked-text">${escapeHTML(device.messages)}</p>
+                                        <p class="text-sm text-slate-600 dark:text-slate-400">${escapeHTML(device.deviceType)}</p>
+                                    </div>
+                                    <dl class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+                                        <dt class="font-medium text-slate-600 dark:text-slate-300">Loop:</dt>
+                                        <dd class="font-mono">${escapeHTML(device.loop) || 'N/A'}</dd>
+                                        <dt class="font-medium text-slate-600 dark:text-slate-300">Address:</dt>
+                                        <dd class="font-mono">${escapeHTML(device.address) || 'N/A'}</dd>
+                                        <dt class="font-medium text-slate-600 dark:text-slate-300">Serial #:</dt>
+                                        <dd class="font-mono truncate">${escapeHTML(device.serialNumber) || 'N/A'}</dd>
+                                        <dt class="font-medium text-slate-600 dark:text-slate-300">Model/SKU:</dt>
+                                        <dd class="font-mono truncate">${escapeHTML(device.model) || 'N/A'}</dd>
+                                    </dl>
+                                </div>
+                                <div class="flex-shrink-0 pl-2">
+                                    <input type="checkbox" data-device-id="${uniqueId}" class="h-10 w-10 rounded-md border-slate-400 text-sky-600 focus-ring pointer-events-none" ${isInspected ? 'checked' : ''} tabindex="-1">
+                                </div>
+                            </div>
+                        </td>
+
+                        <!-- Desktop Table Cells -->
+                        <td class="hidden sm:table-cell p-3 font-medium whitespace-nowrap checked-text">${escapeHTML(device.loop)}</td>
+                        <td class="hidden sm:table-cell p-3 font-medium whitespace-nowrap checked-text">${escapeHTML(device.address)}</td>
+                        <td class="hidden sm:table-cell p-3 max-w-sm truncate checked-text" title="${escapeHTML(device.messages)}">${escapeHTML(device.messages)}</td>
+                        <td class="hidden sm:table-cell p-3 max-w-xs truncate" title="${escapeHTML(device.deviceType)}">${escapeHTML(device.deviceType)}</td>
+                        <td class="hidden sm:table-cell p-3 whitespace-nowrap">${escapeHTML(device.model)}</td>
+                        <td class="hidden sm:table-cell p-3 whitespace-nowrap">${escapeHTML(device.serialNumber)}</td>
+                        <td class="hidden sm:table-cell p-3 text-center">
+                            <input type="checkbox" data-device-id="${uniqueId}" class="h-5 w-5 rounded border-slate-300 text-sky-600 focus-ring pointer-events-none" ${isInspected ? 'checked' : ''} tabindex="-1">
+                        </td>
+                    </tr>
+                `;
+            }
+
+            attachEventListeners() {
+                this.addEventListener('click', (e) => {
+                    const row = e.target.closest('.device-row');
+                    const accordionToggle = e.target.closest('.accordion-toggle');
+                    const sortHeader = e.target.closest('.table-header-sortable');
+
+                    if (accordionToggle) {
+                        const content = this.querySelector(`#${accordionToggle.getAttribute('aria-controls')}`);
+                        const isExpanded = accordionToggle.getAttribute('aria-expanded') === 'true';
+                        accordionToggle.setAttribute('aria-expanded', String(!isExpanded));
+                        if(content) content.classList.toggle('hidden');
+                        this.updateDeviceCounter();
+                        return;
+                    }
+                    
+                    if(sortHeader) {
+                        this.handleSortClick(sortHeader);
+                        return;
+                    }
+                    
+                    if (row) {
+                        this.handleRowClick(row);
+                        return;
+                    }
+                });
+                
+                this.addEventListener('input', debounce((e) => {
+                    if (e.target.id === 'search-input') this.filterTable(e.target.value);
+                }, 250));
+
+                this.addEventListener('change', this.handleSortChange);
+            }
+
+            handleMenuAction(event) {
+                const { action } = event.detail;
+                this.handleGlobalAction(action);
+            }
+            
+            handleSortClick(header) {
+                const newKey = header.dataset.sortKey;
+                let newDir = 'asc';
+                if (this.sortState.key === newKey && this.sortState.dir === 'asc') {
+                    newDir = 'desc';
+                }
+                this.sortState = { key: newKey, dir: newDir };
+                this.updateUI();
+            }
+
+            handleSortChange(event) {
+                if (event.target.id !== 'sort-select') return;
+                const [key, dir] = event.target.value.split('-');
+                this.sortState = { key, dir };
+                this.updateUI();
+            }
+
+            handleRowClick(row) {
+                const { deviceId } = row.dataset;
+                const checkboxes = row.querySelectorAll(`input[data-device-id="${deviceId}"]`);
+                if (checkboxes.length === 0) return;
+
+                const isInspected = !checkboxes[0].checked;
+                
+                if (isInspected) {
+                    this.state.checkedDevices.add(deviceId);
+                    this.state.checkHistory.push(deviceId);
+                } else {
+                    this.state.checkedDevices.delete(deviceId);
+                    const historyIndex = this.state.checkHistory.lastIndexOf(deviceId);
+                    if (historyIndex > -1) this.state.checkHistory.splice(historyIndex, 1);
+                }
+                
+                row.classList.add('flash-bg');
+                row.addEventListener('animationend', () => row.classList.remove('flash-bg'), { once: true });
+
+                this.saveInspectedState();
+                this.updateUI();
+                this.updateLastCheckedFooter();
+            }
+
+            handleGlobalAction(action) {
+                if (action === 'clear-all') {
+                    showConfirmationModal(
+                        "Are you sure you want to clear all inspection checkmarks for this list? This cannot be undone.",
+                        () => { 
+                            this.state.checkedDevices.clear();
+                            this.state.checkHistory = [];
+                            showToast('All checks cleared.', 'info');
+                            this.saveInspectedState();
+                            this.updateLastCheckedFooter();
+                            this.updateUI();
+                        }
+                    );
+                    return;
+                }
+
+                if (action === 'undo') {
+                    if (this.state.checkHistory.length === 0) {
+                        showToast('No actions to undo.', 'info');
+                        return;
+                    }
+                    const lastCheckedId = this.state.checkHistory.pop();
+                    this.state.checkedDevices.delete(lastCheckedId);
+                    const device = this.data.devices.find(d => this.getUniqueDeviceId(d) === lastCheckedId);
+                    if (device) {
+                        showToast(`Undo: Unchecked "${device.messages}"`, 'info');
+                    }
+                }
+                
+                if (action === 'import') {
+                    this.fileInput.click(); // Trigger the hidden file input
+                    return;
+                }
+
+                if (action === 'export') {
+                    this.exportInspectedList();
+                    return;
+                }
+                
+                this.saveInspectedState();
+                this.updateLastCheckedFooter();
+                this.updateUI();
+            }
+            
+            exportInspectedList() {
+                const inspectedDevices = this.data.devices.filter(d => this.getUniqueDeviceId(d) && this.state.checkedDevices.has(this.getUniqueDeviceId(d)));
+                if(inspectedDevices.length === 0) {
+                    showToast('No inspected devices to export.', 'info');
+                    return;
+                }
+                const dataToExport = {
+                    checklistName: this.data.name,
+                    exportDate: new Date().toISOString(),
+                    inspectedCount: inspectedDevices.length,
+                    devices: inspectedDevices
+                };
+                const data = JSON.stringify(dataToExport, null, 2);
+                const blob = new Blob([data], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${this.checklistKey}-inspected-${new Date().toISOString().slice(0,10)}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showToast('Exported inspected list as JSON.', 'success');
+            }
+            
+            handleFileImport(event) {
+                const file = event.target.files[0];
+                if (!file) return; // User cancelled the dialog
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const importedData = JSON.parse(e.target.result);
+                        
+                        // Validation
+                        if (!importedData.checklistName || !Array.isArray(importedData.devices)) {
+                            throw new Error("Invalid file format. Missing 'checklistName' or 'devices' properties.");
+                        }
+                        if (importedData.checklistName !== this.data.name) {
+                            throw new Error(`Checklist mismatch. Current is "${this.data.name}", but file is for "${importedData.checklistName}".`);
+                        }
+
+                        // Merge the imported data
+                        let newDevicesImported = 0;
+                        importedData.devices.forEach(device => {
+                            const normalizedDevice = normalizeDevice(device);
+                            const deviceId = this.getUniqueDeviceId(normalizedDevice);
+                            if (deviceId && !this.state.checkedDevices.has(deviceId)) {
+                                this.state.checkedDevices.add(deviceId);
+                                newDevicesImported++;
+                            }
+                        });
+
+                        this.saveInspectedState();
+                        this.updateUI();
+                        this.updateLastCheckedFooter();
+                        showToast(`${newDevicesImported} new device states imported successfully! Total inspected: ${this.state.checkedDevices.size}.`, 'success');
+
+                    } catch (error) {
+                        showToast(`Import Failed: ${error.message}`, 'error');
+                        console.error("Import error:", error);
+                    } finally {
+                        // Reset file input to allow importing the same file again if needed
+                        event.target.value = '';
+                    }
+                };
+                reader.onerror = () => {
+                    showToast('Error reading the selected file.', 'error');
+                    event.target.value = '';
+                };
+                reader.readAsText(file);
+            }
+
+            filterTable(query) {
+                const q = query.toLowerCase().trim();
+                $$('.device-row', this).forEach(row => {
+                    if (!q) {
+                         row.style.display = window.innerWidth >= 640 ? 'table-row' : 'block';
+                        return;
+                    }
+                    const textContent = row.textContent.toLowerCase();
+                    const shouldShow = textContent.includes(q);
+                    
+                    if (window.innerWidth >= 640) {
+                        row.style.display = shouldShow ? 'table-row' : 'none';
+                    } else {
+                         row.style.display = shouldShow ? 'block' : 'none';
+                    }
+                });
+                this.updateDeviceCounter();
+            }
+
+            updateDeviceCounter() {
+                const counterElement = $('#footer-device-count');
+                if (!counterElement) return;
+
+                const visibleRows = Array.from($$('.device-row', this)).filter(row => {
+                    const rowIsHiddenBySearch = row.style.display === 'none';
+                    const completedList = row.closest('#completed-list');
+                    // A device is visible if it's not hidden by search AND it's not inside a collapsed accordion
+                    const accordionIsCollapsed = completedList && completedList.classList.contains('hidden');
+                    return !rowIsHiddenBySearch && !accordionIsCollapsed;
+                });
+
+                counterElement.textContent = visibleRows.length;
+            }
+            
+            updateUI() {
+                this.renderTableAndAccordion();
+            }
+            
+            updateLastCheckedFooter() {
+                const footer = $('#last-checked-footer');
+                const lastCheckedContainer = $('#last-checked-container');
+                const lastCheckedText = $('#last-checked-text');
+                if (!footer || !lastCheckedContainer || !lastCheckedText) return;
+
+                if (this.data) {
+                    footer.classList.remove('hidden');
+                }
+
+                if (this.state.checkHistory.length > 0) {
+                    const lastCheckedId = this.state.checkHistory[this.state.checkHistory.length - 1];
+                    const device = this.data.devices.find(d => this.getUniqueDeviceId(d) === lastCheckedId);
+                    if (device) {
+                        const idText = device.systemAddress ? device.systemAddress : (device.loop !== 'N/A' ? `L${device.loop}/A${device.address}` : `${device.deviceType} ${device.address}`);
+                        lastCheckedText.textContent = ` ${idText}: ${device.messages}`;
+                        lastCheckedContainer.classList.remove('invisible');
+                    }
+                } else {
+                    lastCheckedContainer.classList.add('invisible');
+                }
+            }
+        }
+        customElements.define('checklist-workspace', ChecklistWorkspace);
+
+        // --- APP INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const mobilePickerContainer = $('#mobile-building-picker-container');
+            const desktopPickerContainer = $('#desktop-building-picker-container');
+            if (mobilePickerContainer) mobilePickerContainer.appendChild(document.createElement('building-picker'));
+            if (desktopPickerContainer) desktopPickerContainer.appendChild(document.createElement('building-picker'));
+            
+            // --- Text Size Controls ---
+            function setTextSize(size) {
+                document.documentElement.dataset.textSize = size;
+                localStorage.setItem('appTextSize', size);
+                $$('.text-size-btn').forEach(b => {
+                    const isActive = b.dataset.textSize === size;
+                    b.classList.toggle('bg-sky-100', isActive);
+                    b.classList.toggle('dark:bg-sky-900/50', isActive);
+                    b.classList.toggle('font-bold', isActive);
+                });
+            }
+
+            function loadTextSize() {
+                const savedSize = localStorage.getItem('appTextSize') || 'medium';
+                setTextSize(savedSize);
+            }
+            
+            loadTextSize(); // Load saved text size on startup
+
+            document.addEventListener('checklist-selected', (e) => {
+                const { key } = e.detail;
+                const workspaceContainer = $('#checklist-workspace');
+                $('#welcome-message')?.remove();
+                let workspace = $('checklist-workspace', workspaceContainer);
+                if (!workspace) {
+                    workspace = document.createElement('checklist-workspace');
+                    workspaceContainer.innerHTML = '';
+                    workspaceContainer.appendChild(workspace);
+                }
+                workspace.setAttribute('building-key', key);
+
+                $('#header-menu-container').classList.remove('invisible', 'opacity-50');
+                $('#menu-toggle-button').disabled = false;
+            });
+
+            // --- HEADER MENU LOGIC ---
+            const menuContainer = $('#header-menu-container');
+            const menuButton = $('#menu-toggle-button');
+            const menuDropdown = $('#menu-dropdown');
+            
+            menuContainer.classList.add('invisible', 'opacity-50');
+            menuButton.disabled = true;
+
+            function toggleMenu(show) {
+                const isVisible = !menuDropdown.classList.contains('hidden');
+                if (typeof show !== 'boolean') show = !isVisible;
+                menuDropdown.classList.toggle('hidden', !show);
+                menuButton.setAttribute('aria-expanded', show);
+            }
+
+            menuButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleMenu();
+            });
+
+            menuDropdown.addEventListener('click', (e) => {
+                const actionTarget = e.target.closest('[data-menu-action]');
+                const sizeTarget = e.target.closest('[data-text-size]');
+
+                if (actionTarget) {
+                    e.preventDefault();
+                    document.dispatchEvent(new CustomEvent('request-workspace-action', { detail: { action: actionTarget.dataset.menuAction } }));
+                    toggleMenu(false);
+                }
+                if (sizeTarget) {
+                    setTextSize(sizeTarget.dataset.textSize);
+                }
+            });
+
+            window.addEventListener('click', (e) => {
+                if (!menuContainer.contains(e.target)) toggleMenu(false);
+            });
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && !menuDropdown.classList.contains('hidden')) toggleMenu(false);
+            });
+        });
+    </script>
+
+</body>
+</html>
