@@ -97,6 +97,16 @@
       .dark .sticky-footer {
           background-color: rgba(15, 23, 42, 0.85); /* dark mode bg */
       }
+
+      /* Scanning animation for video element */
+      @keyframes scanning-pulse {
+        0% { border-color: #38bdf8; } /* sky-400 */
+        50% { border-color: #f8fafc; } /* slate-50 */
+        100% { border-color: #38bdf8; } /* sky-400 */
+      }
+      #scan-video.scanning {
+        animation: scanning-pulse 2s infinite;
+      }
     </style>
 </head>
 <body class="bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-200">
@@ -1374,8 +1384,8 @@
             this.seen.add(op.opId);this.applyOp(op);
             for(const dc of this.peers){if(dc.readyState==="open")dc.send(JSON.stringify(op));}
           }
-          #wire(dc,pc){dc.onopen=()=>{this.peers.add(dc);this.onStatus("connected");};
-            dc.onclose=()=>{this.peers.delete(dc);if(!this.peers.size)this.onStatus("disconnected");pc.close();};
+          #wire(dc,pc){dc.onopen=()=>{this.peers.add(dc);this.onStatus("Connected");showToast("Inspectors connected!", "success");};
+            dc.onclose=()=>{this.peers.delete(dc);if(!this.peers.size)this.onStatus("Disconnected");pc.close();};
             dc.onmessage=(e)=>{try{this.broadcast(JSON.parse(e.data));}catch{}};}
           async #wait(pc){await new Promise(r=>{pc.onicecandidate=(e)=>{if(!e.candidate)r();};setTimeout(r,1200);});}
         }
@@ -1384,26 +1394,21 @@
 
         /* --- Integrate with your cache --- */
         
-        // The docId is set globally when a checklist is selected
         const getDocId = () => window.activeInspectionId;
 
-        // Get the current state from localStorage
         window.getSnap = function() {
             const docId = getDocId();
             if (!docId) return { items: {} };
             return JSON.parse(localStorage.getItem(`checklist:${docId}`) || '{"items":{}}');
         }
 
-        // Save the state and trigger a re-render
         function saveSnap(s) {
             const docId = getDocId();
             if (!docId) return;
             localStorage.setItem(`checklist:${docId}`, JSON.stringify(s));
-            // The web component listens for this and re-renders
             window.renderChecklist?.(); 
         }
 
-        // Apply an operation from a peer
         function applyOp(op) {
           const s = window.getSnap();
           const it = s.items[op.itemId] || (s.items[op.itemId] = {});
@@ -1414,9 +1419,8 @@
           }
         }
 
-        // Initialize the sync instance
         const sync = new P2PSync({
-            get docId() { return getDocId() }, // Use a getter to ensure it's always current
+            get docId() { return getDocId() },
             getSnapshot: window.getSnap,
             applyOp,
             onStatus: (s) => document.getElementById("p2p-status").textContent = "Status: " + s
@@ -1428,123 +1432,115 @@
         /* --- Start session: show QR offer --- */
         document.getElementById("p2p-start").onclick = async () => {
           if (!getDocId()) {
-            alert("Please select a checklist first.");
+            showToast("Please select a checklist first.", "error");
             return;
           }
           document.getElementById("qrcode").innerHTML = "";
           const { sdp, pc } = await sync.createOffer();
           pending = pc;
-          isScanningForAnswer = true; // Now we are waiting for an answer
+          isScanningForAnswer = true;
           new QRCode(document.getElementById("qrcode"), { text: sdp, width: 200, height: 200 });
-          // After showing offer, automatically start scanning for the answer
           startScan();
         };
 
         /* --- Join session: scan partner's QR (offer) --- */
         document.getElementById("p2p-join").onclick = () => {
             if (!getDocId()) {
-                alert("Please select a checklist first.");
+                showToast("Please select a checklist first.", "error");
                 return;
             }
-            isScanningForAnswer = false; // We are initiating, so we're scanning for an offer
+            isScanningForAnswer = false;
             startScan();
         }
 
         async function startScan() {
-          document.getElementById("scanner").classList.remove("hidden");
+          const scannerDiv = document.getElementById("scanner");
+          scannerDiv.classList.remove("hidden");
           const video = document.getElementById("scan-video");
+          video.classList.add("scanning");
           let stream;
+
           try {
             stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
           } catch (err) {
-              alert("Could not access camera. Please grant permission and try again.");
-              document.getElementById("scanner").classList.add("hidden");
+              showToast("Could not access camera. Please grant permission.", "error");
+              scannerDiv.classList.add("hidden");
+              video.classList.remove("scanning");
               return;
           }
           video.srcObject = stream;
+          video.play();
+
           const canvas = document.createElement("canvas");
-          const ctx = canvas.getContext("2d");
-          
+          const ctx = canvas.getContext("2d", { willReadFrequently: true });
           let animationFrameId;
 
-          const tick = async () => {
-            if (video.readyState === video.HAVE_ENOUGH_DATA) {
-              canvas.width = video.videoWidth;
-              canvas.height = video.videoHeight;
-              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-              const code = jsQR(ctx.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height);
-              
-              if (code) {
-                stopScan(); // Stop scanning once a code is found
-                try {
-                    const data = JSON.parse(code.data);
-                    if (data.type === 'offer' && !isScanningForAnswer) {
-                        // We are Inspector B, we scanned an offer
-                        const { sdp, pc } = await sync.acceptOffer(code.data);
-                        pending = pc;
-                        document.getElementById("qrcode").innerHTML = "";
-                        new QRCode(document.getElementById("qrcode"), { text: sdp, width: 200, height: 200 }); // show answer for A to scan
-                    } else if (data.type === 'answer' && isScanningForAnswer) {
-                        // We are Inspector A, we scanned an answer
-                        if (pending) {
-                            await sync.acceptAnswer(pending, code.data);
-                            pending = null;
-                            isScanningForAnswer = false;
-                            document.getElementById("qrcode").innerHTML = ""; // Hide QR after connection
-                        }
-                    } else {
-                        // This case handles Inspector A scanning their own offer QR code by mistake
-                        if (data.type === 'offer' && isScanningForAnswer) {
-                           // Do nothing, just wait for the answer
-                           console.log("Scanned own offer, waiting for answer...");
-                           // Restart scanning
-                           animationFrameId = requestAnimationFrame(tick);
-                           return;
-                        }
-                        // Fallback for unexpected QR data
-                        console.warn("Scanned unexpected QR data:", data);
-                    }
-                } catch(e) {
-                    console.error("Error processing QR code data:", e);
-                    // It might be a non-JSON QR code, try to process as old format for compatibility
-                    if (isScanningForAnswer && pending) {
-                         await sync.acceptAnswer(pending, code.data);
-                         pending = null;
-                         isScanningForAnswer = false;
-                         document.getElementById("qrcode").innerHTML = "";
-                    } else if (!isScanningForAnswer) {
-                         const { sdp, pc } = await sync.acceptOffer(code.data);
-                         pending = pc;
-                         document.getElementById("qrcode").innerHTML = "";
-                         new QRCode(document.getElementById("qrcode"), { text: sdp, width: 200, height: 200 });
-                    }
-                }
-              }
-            }
-            if (!stream.getTracks().some(track => track.readyState === 'ended')) {
-                animationFrameId = requestAnimationFrame(tick);
-            }
-          };
-          
           const stopScan = () => {
               cancelAnimationFrame(animationFrameId);
               if (video.srcObject) {
                   video.srcObject.getTracks().forEach(t => t.stop());
+                  video.srcObject = null;
               }
-              document.getElementById("scanner").classList.add("hidden");
+              scannerDiv.classList.add("hidden");
+              video.classList.remove("scanning");
+          };
+
+          const handleScannedCode = async (scannedData) => {
+            console.log("QR Code detected:", scannedData);
+            try {
+                const data = JSON.parse(scannedData);
+                if (data.type === 'offer' && !isScanningForAnswer) {
+                    console.log("Processing offer...");
+                    const { sdp, pc } = await sync.acceptOffer(scannedData);
+                    pending = pc;
+                    document.getElementById("qrcode").innerHTML = "";
+                    new QRCode(document.getElementById("qrcode"), { text: sdp, width: 200, height: 200 });
+                } else if (data.type === 'answer' && isScanningForAnswer) {
+                    console.log("Processing answer...");
+                    if (pending) {
+                        await sync.acceptAnswer(pending, scannedData);
+                        pending = null;
+                        isScanningForAnswer = false;
+                        document.getElementById("qrcode").innerHTML = "";
+                    }
+                } else {
+                   console.warn("Scanned QR data type/state mismatch. Continuing scan.");
+                   animationFrameId = requestAnimationFrame(tick); // Continue scanning
+                }
+            } catch (e) {
+                console.error("Error processing QR code data:", e);
+                showToast("Failed to process QR code.", "error");
+            }
+          };
+          
+          const tick = () => {
+            if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth > 0) {
+              canvas.height = video.videoHeight;
+              canvas.width = video.videoWidth;
+              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+              try {
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height);
+                if (code && code.data) {
+                  stopScan();
+                  handleScannedCode(code.data);
+                  return; // Exit loop
+                }
+              } catch(e) {
+                 console.error("jsQR error:", e);
+              }
+            }
+            animationFrameId = requestAnimationFrame(tick);
           };
 
           document.getElementById("stop-scan").onclick = stopScan;
-          
-          tick();
+          animationFrameId = requestAnimationFrame(tick);
         }
 
         /* --- Modify your toggleComplete to sync --- */
         window.toggleComplete = function(itemId, checked) {
           const op = sync.makeOp({ itemId, field: "completed", value: !!checked });
-          // Apply locally first for responsiveness
           applyOp(op); 
-          // Then broadcast to peers
           sync.broadcast(op);
         };
     </script>
