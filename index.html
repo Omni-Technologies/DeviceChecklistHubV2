@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Omni Checklist Hub</title>
     
-    <!-- PWA, SEO & Mobile Meta -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Omni Checklist">
@@ -32,7 +31,8 @@
         }]
     }">
     
-    <!-- Tailwind CSS -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -53,7 +53,6 @@
       }
     </script>
     
-    <!-- Custom Styles -->
     <style type="text/css">
       @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
       
@@ -97,36 +96,22 @@
       .dark .sticky-footer {
           background-color: rgba(15, 23, 42, 0.85); /* dark mode bg */
       }
-
-      /* Scanning animation for video element */
-      @keyframes scanning-pulse {
-        0% { border-color: #38bdf8; } /* sky-400 */
-        50% { border-color: #f8fafc; } /* slate-50 */
-        100% { border-color: #38bdf8; } /* sky-400 */
-      }
-      #scan-video.scanning {
-        animation: scanning-pulse 2s infinite;
-      }
     </style>
 </head>
 <body class="bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-200">
 
-    <!-- Hidden file input for the import functionality -->
     <input type="file" id="import-file-input" class="hidden" accept=".json">
 
     <div id="app-container" class="relative min-h-screen">
         
-        <!-- Header -->
         <header class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-40 w-full border-b border-slate-200 dark:border-slate-800">
             <div class="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="flex items-center justify-between h-16">
-                    <!-- Left Side: Title -->
                     <div class="flex items-center">
                         <span class="text-2xl font-bold text-sky-600 dark:text-sky-500">✅</span>
                         <h1 class="ml-3 text-xl font-bold tracking-tight">Omni Checklist</h1>
                     </div>
                     
-                    <!-- Right Side: Hamburger Menu -->
                     <div id="header-menu-container" class="relative">
                         <button id="menu-toggle-button" type="button" class="p-2 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 focus-ring" aria-label="Open options menu" aria-haspopup="true" aria-expanded="false">
                             <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
@@ -146,36 +131,12 @@
                         </div>
                     </div>
                 </div>
-                 <!-- Mobile Building Picker (becomes visible via JS) -->
-                <div id="mobile-building-picker-container" class="sm:hidden pb-4"></div>
+                 <div id="mobile-building-picker-container" class="sm:hidden pb-4"></div>
             </div>
         </header>
 
-        <!-- Main Content -->
         <main class="max-w-screen-2xl mx-auto p-2 sm:p-6 lg:p-8">
-            
-            <!-- P2P Sync Panel -->
-            <div id="p2p-panel-container" class="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 mb-6 hidden">
-                <div class="bg-white dark:bg-slate-900 rounded-xl shadow p-4 space-y-3">
-                  <div class="font-semibold text-lg">Inspector Connect</div>
-                  <div class="flex items-center gap-3">
-                      <button id="p2p-start" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-md focus-ring">Start Session</button>
-                      <button id="p2p-join" class="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-md focus-ring">Join Session</button>
-                  </div>
-                  <div id="p2p-status" class="text-sm text-slate-500 dark:text-slate-400">Status: Disconnected</div>
-                  <!-- QR for share -->
-                  <div id="qrcode" class="my-2 p-2 bg-white inline-block rounded-lg"></div>
-                  <!-- QR scanner -->
-                  <div id="scanner" class="hidden">
-                    <p class="text-sm mb-2">Point your camera at the other inspector's QR code.</p>
-                    <video id="scan-video" autoplay playsinline class="w-full max-w-sm h-auto border-4 border-slate-300 dark:border-slate-700 rounded-lg"></video>
-                    <button id="stop-scan" class="mt-2 px-3 py-1 border border-slate-300 dark:border-slate-600 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 focus-ring">Stop Scan</button>
-                  </div>
-                </div>
-            </div>
-
             <div class="flex flex-col sm:flex-row gap-8">
-                <!-- Checklist Workspace -->
                 <div id="checklist-workspace" class="flex-grow">
                      <div id="welcome-message" class="text-center py-20 px-4">
                         <h2 class="text-2xl font-semibold text-slate-600 dark:text-slate-400">Welcome, Inspector!</h2>
@@ -183,14 +144,12 @@
                     </div>
                 </div>
 
-                <!-- Desktop Building Picker Sidebar -->
                 <aside id="desktop-building-picker-container" class="hidden sm:block sm:w-64 md:w-72 lg:w-80 flex-shrink-0">
                 </aside>
             </div>
         </main>
         
-        <!-- Last Checked Footer -->
-       <footer id="last-checked-footer" class="fixed bottom-0 left-0 right-0 p-3 border-t border-slate-200 dark:border-slate-800 sticky-footer z-30 hidden">
+        <footer id="last-checked-footer" class="fixed bottom-0 left-0 right-0 p-3 border-t border-slate-200 dark:border-slate-800 sticky-footer z-30 hidden">
             <div class="max-w-screen-2xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 sm:px-6 lg:px-8 gap-1 sm:gap-4">
                 <div id="footer-device-counter-container" class="text-sm text-slate-600 dark:text-slate-300 font-medium whitespace-nowrap w-full sm:w-auto text-left">
                     Devices on screen: <span id="footer-device-count" class="font-bold text-slate-800 dark:text-slate-100">0</span>
@@ -202,10 +161,8 @@
             </div>
         </footer>
 
-        <!-- Toasts/Notifications Container -->
         <div id="toast-container" aria-live="assertive" aria-atomic="true" class="fixed bottom-16 right-0 p-4 sm:p-6 space-y-3 z-50 w-full max-w-sm"></div>
         
-        <!-- Confirmation Modal -->
         <div id="confirmation-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4" aria-labelledby="modal-title" role="dialog" aria-modal="true">
             <div id="confirmation-modal-panel" class="relative transform overflow-hidden rounded-lg bg-white dark:bg-slate-800 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
                 <div class="bg-white dark:bg-slate-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
@@ -229,11 +186,6 @@
         </div>
     </div>
     
-    <!-- QR and Sync Libraries -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.min.js"></script>
-
-    <!-- Main Application Logic -->
     <script type="module">
         // ===================================================================================
         // --- CHECKLIST DATA ---
@@ -369,7 +321,7 @@
               { loop: 'N/A', address: 4, model: 'Genesis', deviceType: 'NAC', serialNumber: 'N/A', messages: 'NAC 4' },
             ]
           },
-           {
+ {
             key: "rock_county_youth_services",
             name: "Rock County Youth Services",
             location: "Fire Alarm Device Inspection",
@@ -546,10 +498,6 @@
             ]
           }
         ];
-
-        // --- GLOBAL STATE ---
-        // This will hold the ID of the currently active checklist for the sync script.
-        window.activeInspectionId = null;
 
         // --- UTILITIES ---
         const $ = (selector, parent = document) => parent.querySelector(selector);
@@ -774,23 +722,28 @@
                 this.checklistKey = null;
                 this.sortState = { key: 'address', dir: 'asc' };
                 this.state = {
-                    items: {}, // This will now be managed by the P2P sync logic
+                    checkedDevices: new Set(),
                     checkHistory: [],
                 };
+                
+                // P2P State
+                this.peer = null;
+                this.connections = new Map();
+                this.peerId = null;
+
                 // Bind 'this' for event handlers that are added/removed
                 this.handleMenuAction = this.handleMenuAction.bind(this);
                 this.handleSortChange = this.handleSortChange.bind(this);
                 this.handleFileImport = this.handleFileImport.bind(this);
-                
-                // Make the render method available globally for the sync script
-                window.renderChecklist = this.updateUI.bind(this);
+                this.startSyncSession = this.startSyncSession.bind(this);
+                this.joinSyncSession = this.joinSyncSession.bind(this);
+                this.copyPeerId = this.copyPeerId.bind(this);
             }
             
             static get observedAttributes() { return ['building-key']; }
 
             connectedCallback() {
                 document.addEventListener('request-workspace-action', this.handleMenuAction);
-                // Listen for file import
                 this.fileInput = $('#import-file-input');
                 if (this.fileInput) {
                     this.fileInput.addEventListener('change', this.handleFileImport);
@@ -802,24 +755,31 @@
                  if (this.fileInput) {
                     this.fileInput.removeEventListener('change', this.handleFileImport);
                 }
-                window.renderChecklist = null; // Clean up global reference
+                // Clean up P2P connection
+                if (this.peer) {
+                    this.peer.destroy();
+                }
             }
 
             attributeChangedCallback(name, oldValue, newValue) {
                 if (name === 'building-key' && oldValue !== newValue) {
                     this.checklistKey = newValue;
-                    window.activeInspectionId = newValue; // Set for sync script
                     this.loadChecklist();
                 }
             }
             
             getUniqueDeviceId(device) {
-                // Use a combination of properties to create a reliable unique ID
-                return `${device.serialNumber}-${device.loop}-${device.address}-${device.messages}`;
+                return `${this.checklistKey}-${device.serialNumber}-${device.loop}-${device.address}-${device.messages}`;
             }
 
             loadChecklist() {
                 this.innerHTML = `<div class="text-center py-20">Loading checklist...</div>`;
+                // Disconnect from any previous P2P session
+                if (this.peer) {
+                    this.peer.destroy();
+                    this.peer = null;
+                }
+
                 try {
                     const checklistData = CHECKLISTS.find(c => c.key === this.checklistKey);
                     if (!checklistData) throw new Error("Checklist not found.");
@@ -827,27 +787,54 @@
                     this.data = JSON.parse(JSON.stringify(checklistData));
                     this.data.devices = this.data.devices.map(device => normalizeDevice(device));
                     
-                    // The state is now loaded via getSnap() from the sync script
+                    this.loadInspectedState();
+                    this.initP2P(); // Initialize PeerJS for this checklist
                     this.render();
-                } catch (error)
-                 {
+                } catch (error) {
                     showToast(error.message, 'error');
                     this.innerHTML = `<div class="text-center py-20 text-red-500">${escapeHTML(error.message)}</div>`;
                     console.error("Failed to load checklist:", error);
                 }
             }
             
+            loadInspectedState() {
+                const savedState = localStorage.getItem(`checklistState_${this.checklistKey}`);
+                if (savedState) {
+                    const parsed = JSON.parse(savedState);
+                    this.state.checkedDevices = new Set(parsed.checked || []);
+                    this.state.checkHistory = parsed.history || [];
+                } else {
+                    this.state.checkedDevices.clear();
+                    this.state.checkHistory = [];
+                }
+                this.updateLastCheckedFooter();
+            }
+
+            saveInspectedState() {
+                const appState = {
+                    checked: Array.from(this.state.checkedDevices),
+                    history: this.state.checkHistory
+                };
+                localStorage.setItem(`checklistState_${this.checklistKey}`, JSON.stringify(appState));
+            }
+
             render() {
                 if (!this.data) return;
                 this.innerHTML = `
                     <div class="bg-white dark:bg-slate-900 rounded-xl shadow-lg">
                         <header class="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-800">
-                           <h2 class="text-2xl sm:text-3xl font-bold tracking-tight">${escapeHTML(this.data.name)}</h2>
-                           <p class="text-slate-500 dark:text-slate-400">${escapeHTML(this.data.location)}</p>
+                           <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                                <div>
+                                    <h2 class="text-2xl sm:text-3xl font-bold tracking-tight">${escapeHTML(this.data.name)}</h2>
+                                    <p class="text-slate-500 dark:text-slate-400">${escapeHTML(this.data.location)}</p>
+                                </div>
+                                <div id="sync-controls-container" class="flex-shrink-0"></div>
+                           </div>
                         </header>
                         <div id="checklist-content" class="p-2 sm:p-6"></div>
                     </div>
                 `;
+                this.renderSyncControls();
                 this.updateUI();
                 this.attachEventListeners();
             }
@@ -859,7 +846,6 @@
                     <div class="space-y-4">
                         <div id="progress-container"></div>
                         
-                        <!-- Search and Sort Controls -->
                         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-2 sm:p-0">
                             <div class="relative flex-grow">
                                 <label for="search-input" class="sr-only">Search Devices</label>
@@ -892,12 +878,9 @@
             updateProgress() {
                 const container = $(`#progress-container`, this);
                 if (!container) return;
-                
-                const snapshot = window.getSnap(); // Use sync-aware function
                 const total = this.data.devices.length;
-                const inspectedCount = Object.values(snapshot.items).filter(item => item.completed?.value).length;
+                const inspectedCount = this.state.checkedDevices.size;
                 const percent = total > 0 ? Math.round((inspectedCount / total) * 100) : 0;
-                
                 container.innerHTML = `
                     <div class="flex justify-between items-center mb-1 text-sm font-medium px-2 sm:px-0">
                         <span class="text-slate-600 dark:text-slate-300">Progress</span>
@@ -939,15 +922,13 @@
                     }
                 });
                 
-                const snapshot = window.getSnap();
-                const inspectedDevices = allDevices.filter(d => snapshot.items[this.getUniqueDeviceId(d)]?.completed?.value);
-                const activeDevices = allDevices.filter(d => !snapshot.items[this.getUniqueDeviceId(d)]?.completed?.value);
+                const inspectedDevices = allDevices.filter(d => this.state.checkedDevices.has(this.getUniqueDeviceId(d)));
+                const activeDevices = allDevices.filter(d => !this.state.checkedDevices.has(this.getUniqueDeviceId(d)));
                 
                 $(`#completed-container`, this).innerHTML = this.renderAccordionHTML(inspectedDevices);
                 $(`#active-container`, this).innerHTML = this.renderListHTML(activeDevices);
                 
                 this.updateProgress();
-                this.updateLastCheckedFooter();
 
                 const newSearchInput = $('#search-input', this);
                 if (newSearchInput && currentSearchQuery) {
@@ -1010,13 +991,11 @@
             
             renderRowHTML(device) {
                 const uniqueId = this.getUniqueDeviceId(device);
-                const snapshot = window.getSnap();
-                const isInspected = snapshot.items[uniqueId]?.completed?.value;
+                const isInspected = this.state.checkedDevices.has(uniqueId);
                 
                 return `
                     <tr data-device-id="${uniqueId}" class="device-row block sm:table-row cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 ${isInspected ? 'bg-slate-100/50 dark:bg-slate-800/20 opacity-70' : ''}">
                         
-                        <!-- Mobile Card View -->
                         <td class="sm:hidden w-full p-3">
                             <div class="flex items-center justify-between gap-3 w-full">
                                 <div class="flex-grow space-y-3">
@@ -1046,7 +1025,6 @@
                             </div>
                         </td>
 
-                        <!-- Desktop Table Cells -->
                         <td class="hidden sm:table-cell p-3 font-medium whitespace-nowrap">${escapeHTML(device.loop)}</td>
                         <td class="hidden sm:table-cell p-3 font-medium whitespace-nowrap">${escapeHTML(device.address)}</td>
                         <td class="hidden sm:table-cell p-3 max-w-sm truncate" title="${escapeHTML(device.messages)}">${escapeHTML(device.messages)}</td>
@@ -1065,6 +1043,9 @@
                     const row = e.target.closest('.device-row');
                     const accordionToggle = e.target.closest('.accordion-toggle');
                     const sortHeader = e.target.closest('.table-header-sortable');
+                    const startSyncBtn = e.target.closest('#start-sync-btn');
+                    const joinSyncBtn = e.target.closest('#join-sync-btn');
+                    const copyIdBtn = e.target.closest('#copy-peer-id-btn');
 
                     if (accordionToggle) {
                         const content = this.querySelector(`#${accordionToggle.getAttribute('aria-controls')}`);
@@ -1074,16 +1055,11 @@
                         this.updateDeviceCounter();
                         return;
                     }
-                    
-                    if(sortHeader) {
-                        this.handleSortClick(sortHeader);
-                        return;
-                    }
-                    
-                    if (row) {
-                        this.handleRowClick(row);
-                        return;
-                    }
+                    if (startSyncBtn) this.startSyncSession();
+                    if (joinSyncBtn) this.joinSyncSession();
+                    if (copyIdBtn) this.copyPeerId();
+                    if (sortHeader) this.handleSortClick(sortHeader);
+                    if (row) this.handleRowClick(row);
                 });
                 
                 this.addEventListener('input', debounce((e) => {
@@ -1092,7 +1068,186 @@
 
                 this.addEventListener('change', this.handleSortChange);
             }
+            
+            // ===================================================================================
+            // --- NEW: P2P SYNC LOGIC ---
+            // ===================================================================================
 
+            renderSyncControls() {
+                const container = $('#sync-controls-container', this);
+                if (!container) return;
+
+                const connectionCount = this.connections.size;
+                let statusColor = 'bg-slate-400';
+                let statusText = 'Not Connected';
+                if (this.peer && this.peer.open && connectionCount > 0) {
+                    statusColor = 'bg-green-500';
+                    statusText = `Connected to ${connectionCount} inspector${connectionCount > 1 ? 's' : ''}`;
+                } else if (this.peer && this.peer.open) {
+                    statusColor = 'bg-sky-500';
+                    statusText = 'Waiting for connection...';
+                }
+
+                container.innerHTML = `
+                    <div class="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg text-sm space-y-3 w-64">
+                        <div class="flex items-center justify-between">
+                            <h3 class="font-semibold">Live Sync</h3>
+                            <div class="flex items-center gap-2">
+                                <div class="w-3 h-3 rounded-full ${statusColor}"></div>
+                                <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">${statusText}</span>
+                            </div>
+                        </div>
+                        <div id="sync-session-view" class="hidden">
+                             <label for="peer-id-display" class="block text-xs font-medium text-slate-600 dark:text-slate-300">Your Session ID:</label>
+                             <div class="flex items-center gap-2 mt-1">
+                                <input type="text" readonly id="peer-id-display" class="flex-grow bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-1 px-2 text-xs font-mono">
+                                <button id="copy-peer-id-btn" title="Copy ID" class="p-1.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 focus-ring">
+                                    <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 4.625v2.625a2.625 2.625 0 11-5.25 0v-2.625m0-3.875V11.25a2.625 2.625 0 015.25 0v2.625" /></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="sync-join-view">
+                            <button id="start-sync-btn" class="w-full mb-2 inline-flex justify-center rounded-md border border-transparent bg-sky-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-sky-700 focus-ring">Start Sync Session</button>
+                            <div class="relative">
+                                <div class="absolute inset-0 flex items-center" aria-hidden="true"><div class="w-full border-t border-slate-300 dark:border-slate-600"></div></div>
+                                <div class="relative flex justify-center"><span class="bg-slate-50 dark:bg-slate-800/50 px-2 text-xs text-slate-500">OR</span></div>
+                            </div>
+                            <div class="mt-2 flex gap-2">
+                                <input type="text" id="join-peer-id-input" placeholder="Enter session ID..." class="flex-grow w-0 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-1 px-2 text-xs">
+                                <button id="join-sync-btn" class="inline-flex justify-center rounded-md border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-sm font-medium shadow-sm hover:bg-slate-100 dark:hover:bg-slate-700 focus-ring">Join</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            initP2P() {
+                // The PeerJS ID will be a combination of the checklist key and a random number
+                // to ensure sessions are unique to each checklist.
+                const randomId = Math.floor(1000 + Math.random() * 9000);
+                const peerId = `omni-${this.checklistKey.substring(0, 10)}-${randomId}`;
+                this.peer = new Peer(peerId);
+
+                this.peer.on('open', id => {
+                    this.peerId = id;
+                    console.log('My peer ID is: ' + id);
+                    this.startSyncSession(); // Automatically start as a host
+                });
+                
+                this.peer.on('connection', conn => this.setupConnection(conn));
+                
+                this.peer.on('error', err => {
+                    console.error('PeerJS error:', err);
+                    showToast(`Connection Error: ${err.message}`, 'error');
+                    this.renderSyncControls();
+                });
+
+                this.peer.on('disconnected', () => {
+                     showToast('Sync connection closed.', 'info');
+                     this.renderSyncControls();
+                });
+            }
+            
+            setupConnection(conn) {
+                conn.on('open', () => {
+                    showToast(`Inspector ${conn.peer.slice(-4)} connected.`, 'success');
+                    this.connections.set(conn.peer, conn);
+                    this.renderSyncControls();
+
+                    // When a new inspector connects, send them the current state
+                    this.sendUpdate({
+                        type: 'full-sync',
+                        checkedDevices: Array.from(this.state.checkedDevices)
+                    }, conn);
+                });
+
+                conn.on('data', data => this.handleReceivedData(data));
+                
+                conn.on('close', () => {
+                    showToast(`Inspector ${conn.peer.slice(-4)} disconnected.`, 'info');
+                    this.connections.delete(conn.peer);
+                    this.renderSyncControls();
+                });
+            }
+
+            startSyncSession() {
+                if (!this.peerId) {
+                    showToast('Still initializing connection...', 'info');
+                    return;
+                }
+                $('#sync-session-view', this).classList.remove('hidden');
+                $('#sync-join-view', this).classList.add('hidden');
+                $('#peer-id-display', this).value = this.peerId.slice(-4);
+                this.renderSyncControls();
+            }
+
+            joinSyncSession() {
+                const joinIdInput = $('#join-peer-id-input', this);
+                const shortId = joinIdInput.value.trim();
+                if (!shortId) {
+                    showToast('Please enter a session ID.', 'error');
+                    return;
+                }
+                
+                // Reconstruct the full ID
+                const fullId = `omni-${this.checklistKey.substring(0, 10)}-${shortId}`;
+
+                showToast(`Connecting to session ${shortId}...`, 'info');
+                const conn = this.peer.connect(fullId);
+                this.setupConnection(conn);
+                joinIdInput.value = '';
+            }
+            
+            copyPeerId() {
+                const id = this.peerId.slice(-4);
+                navigator.clipboard.writeText(id).then(() => {
+                    showToast('Session ID copied to clipboard!', 'success');
+                }).catch(err => {
+                    showToast('Failed to copy ID.', 'error');
+                });
+            }
+
+            sendUpdate(data, specificConnection = null) {
+                if (specificConnection) {
+                    specificConnection.send(data);
+                } else {
+                    this.connections.forEach(conn => {
+                        if (conn.open) {
+                            conn.send(data);
+                        }
+                    });
+                }
+            }
+
+            handleReceivedData(data) {
+                switch (data.type) {
+                    case 'full-sync':
+                        showToast('Receiving full sync from partner...', 'info');
+                        this.state.checkedDevices = new Set(data.checkedDevices);
+                        this.saveInspectedState();
+                        this.updateUI();
+                        showToast('Sync complete!', 'success');
+                        break;
+                    case 'device-update':
+                        const { deviceId, isInspected } = data;
+                        if (isInspected) {
+                            this.state.checkedDevices.add(deviceId);
+                        } else {
+                            this.state.checkedDevices.delete(deviceId);
+                        }
+                        this.saveInspectedState();
+                        this.updateUI();
+                        const row = $(`tr[data-device-id="${deviceId}"]`, this);
+                        if (row) {
+                            row.classList.add('flash-bg');
+                            row.addEventListener('animationend', () => row.classList.remove('flash-bg'), { once: true });
+                        }
+                        break;
+                }
+            }
+            
+            // --- END NEW P2P LOGIC ---
+            
             handleMenuAction(event) {
                 const { action } = event.detail;
                 this.handleGlobalAction(action);
@@ -1116,16 +1271,30 @@
             }
 
             handleRowClick(row) {
-                const itemId = row.dataset.deviceId;
-                const checkbox = row.querySelector(`input[type="checkbox"]`);
-                if (!checkbox) return;
-                const isChecked = !checkbox.checked;
+                const { deviceId } = row.dataset;
+                const checkboxes = row.querySelectorAll(`input[data-device-id="${deviceId}"]`);
+                if (checkboxes.length === 0) return;
 
-                // The new toggleComplete function will handle state update and broadcasting
-                window.toggleComplete(itemId, isChecked);
+                const isInspected = !checkboxes[0].checked;
+                
+                if (isInspected) {
+                    this.state.checkedDevices.add(deviceId);
+                    this.state.checkHistory.push(deviceId);
+                } else {
+                    this.state.checkedDevices.delete(deviceId);
+                    const historyIndex = this.state.checkHistory.lastIndexOf(deviceId);
+                    if (historyIndex > -1) this.state.checkHistory.splice(historyIndex, 1);
+                }
+                
+                // Send P2P update to connected peers
+                this.sendUpdate({ type: 'device-update', deviceId, isInspected });
 
                 row.classList.add('flash-bg');
                 row.addEventListener('animationend', () => row.classList.remove('flash-bg'), { once: true });
+
+                this.saveInspectedState();
+                this.updateUI();
+                this.updateLastCheckedFooter();
             }
 
             handleGlobalAction(action) {
@@ -1133,23 +1302,32 @@
                     showConfirmationModal(
                         "Are you sure you want to clear all inspection checkmarks for this list? This cannot be undone.",
                         () => { 
-                            const snapshot = window.getSnap();
-                            for (const itemId of Object.keys(snapshot.items)) {
-                                if (snapshot.items[itemId].completed?.value) {
-                                    window.toggleComplete(itemId, false);
-                                }
-                            }
+                            this.state.checkedDevices.clear();
+                            this.state.checkHistory = [];
                             showToast('All checks cleared.', 'info');
+                            this.saveInspectedState();
+                            this.updateLastCheckedFooter();
+                            this.updateUI();
                         }
                     );
                     return;
                 }
 
                 if (action === 'undo') {
-                    // This is tricky with multi-user sync. A simple history won't work reliably.
-                    // For now, we'll disable it or accept it might only work for the local user's last action.
-                    showToast('Undo is not fully supported in sync mode yet.', 'info');
-                    return;
+                    if (this.state.checkHistory.length === 0) {
+                        showToast('No actions to undo.', 'info');
+                        return;
+                    }
+                    const lastCheckedId = this.state.checkHistory.pop();
+                    this.state.checkedDevices.delete(lastCheckedId);
+                    
+                    // Also send the undo action to peers
+                    this.sendUpdate({ type: 'device-update', deviceId: lastCheckedId, isInspected: false });
+                    
+                    const device = this.data.devices.find(d => this.getUniqueDeviceId(d) === lastCheckedId);
+                    if (device) {
+                        showToast(`Undo: Unchecked "${device.messages}"`, 'info');
+                    }
                 }
                 
                 if (action === 'import') {
@@ -1161,14 +1339,14 @@
                     this.exportInspectedList();
                     return;
                 }
+                
+                this.saveInspectedState();
+                this.updateLastCheckedFooter();
+                this.updateUI();
             }
             
             exportInspectedList() {
-                const snapshot = window.getSnap();
-                const checkedIds = Object.keys(snapshot.items).filter(id => snapshot.items[id].completed?.value);
-                
-                const inspectedDevices = this.data.devices.filter(d => checkedIds.includes(this.getUniqueDeviceId(d)));
-
+                const inspectedDevices = this.data.devices.filter(d => this.state.checkedDevices.has(this.getUniqueDeviceId(d)));
                 if(inspectedDevices.length === 0) {
                     showToast('No inspected devices to export.', 'info');
                     return;
@@ -1194,7 +1372,7 @@
             
             handleFileImport(event) {
                 const file = event.target.files[0];
-                if (!file) return;
+                if (!file) return; // User cancelled the dialog
 
                 const reader = new FileReader();
                 reader.onload = (e) => {
@@ -1202,24 +1380,29 @@
                         const importedData = JSON.parse(e.target.result);
                         
                         if (!importedData.checklistName || !Array.isArray(importedData.devices)) {
-                            throw new Error("Invalid file format.");
+                            throw new Error("Invalid file format. Missing 'checklistName' or 'devices' properties.");
                         }
                         if (importedData.checklistName !== this.data.name) {
                             throw new Error(`Checklist mismatch. Current is "${this.data.name}", but file is for "${importedData.checklistName}".`);
                         }
 
                         let newDevicesImported = 0;
-                        const snapshot = window.getSnap();
                         importedData.devices.forEach(device => {
                             const normalizedDevice = normalizeDevice(device);
                             const deviceId = this.getUniqueDeviceId(normalizedDevice);
-                            if (!snapshot.items[deviceId]?.completed?.value) {
-                                window.toggleComplete(deviceId, true); // Use the sync-aware function
+                            if (!this.state.checkedDevices.has(deviceId)) {
+                                this.state.checkedDevices.add(deviceId);
                                 newDevicesImported++;
                             }
                         });
                         
-                        showToast(`${newDevicesImported} new device states imported successfully!`, 'success');
+                        // Send a full sync after import to update peers
+                        this.sendUpdate({ type: 'full-sync', checkedDevices: Array.from(this.state.checkedDevices) });
+
+                        this.saveInspectedState();
+                        this.updateUI();
+                        this.updateLastCheckedFooter();
+                        showToast(`${newDevicesImported} new device states imported successfully! Total inspected: ${this.state.checkedDevices.size}.`, 'success');
 
                     } catch (error) {
                         showToast(`Import Failed: ${error.message}`, 'error');
@@ -1269,7 +1452,6 @@
             }
             
             updateUI() {
-                if (!this.data) return;
                 this.renderTableAndAccordion();
             }
             
@@ -1282,10 +1464,18 @@
                 if (this.data) {
                     footer.classList.remove('hidden');
                 }
-                
-                // This part is difficult to sync perfectly without a full history log.
-                // We will leave the "last checked" as a local-only feature for now.
-                // A more robust solution would require syncing history, which is more complex.
+
+                if (this.state.checkHistory.length > 0) {
+                    const lastCheckedId = this.state.checkHistory[this.state.checkHistory.length - 1];
+                    const device = this.data.devices.find(d => this.getUniqueDeviceId(d) === lastCheckedId);
+                    if (device) {
+                        const idText = device.systemAddress ? device.systemAddress : (device.loop !== 'N/A' ? `L${device.loop}/A${device.address}` : `${device.deviceType} ${device.address}`);
+                        lastCheckedText.textContent = ` ${idText}: ${device.messages}`;
+                        lastCheckedContainer.classList.remove('invisible');
+                    }
+                } else {
+                    lastCheckedContainer.classList.add('invisible');
+                }
             }
         }
         customElements.define('checklist-workspace', ChecklistWorkspace);
@@ -1311,7 +1501,6 @@
 
                 $('#header-menu-container').classList.remove('invisible', 'opacity-50');
                 $('#menu-toggle-button').disabled = false;
-                $('#p2p-panel-container').classList.remove('hidden');
             });
 
             // --- HEADER MENU LOGIC ---
@@ -1352,197 +1541,5 @@
         });
     </script>
 
-    <!-- P2P Sync Script -->
-    <script type="module">
-        class P2PSync {
-          constructor({docId,getSnapshot,applyOp,onStatus}) {
-            this.docId=docId;this.getSnapshot=getSnapshot;this.applyOp=applyOp;
-            this.onStatus=onStatus||(()=>{});this.peers=new Set();this.seen=new Set();
-            this.actor=crypto.randomUUID();this.clock=Date.now();
-          }
-          async createOffer() {
-            const pc=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});
-            const dc=pc.createDataChannel("ops");this.#wire(dc,pc);
-            const offer=await pc.createOffer();await pc.setLocalDescription(offer);
-            await this.#wait(pc);return {sdp:JSON.stringify(pc.localDescription),pc};
-          }
-          async acceptOffer(remote) {
-            const pc=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});
-            pc.ondatachannel=(e)=>this.#wire(e.channel,pc);
-            await pc.setRemoteDescription(JSON.parse(remote));
-            const ans=await pc.createAnswer();await pc.setLocalDescription(ans);
-            await this.#wait(pc);return {sdp:JSON.stringify(pc.localDescription),pc};
-          }
-          async acceptAnswer(pc,remote){await pc.setRemoteDescription(JSON.parse(remote));}
-          makeOp({itemId,field,value}) {
-            this.clock=Math.max(this.clock+1,Date.now());
-            const ts=this.clock;
-            return {docId:this.docId,itemId,field,value,ts,actor:this.actor,opId:`${this.actor}-${itemId}-${field}-${ts}`};
-          }
-          broadcast(op) {
-            if(op.docId!==this.docId||this.seen.has(op.opId))return;
-            this.seen.add(op.opId);this.applyOp(op);
-            for(const dc of this.peers){if(dc.readyState==="open")dc.send(JSON.stringify(op));}
-          }
-          #wire(dc,pc){dc.onopen=()=>{this.peers.add(dc);this.onStatus("Connected");showToast("Inspectors connected!", "success");};
-            dc.onclose=()=>{this.peers.delete(dc);if(!this.peers.size)this.onStatus("Disconnected");pc.close();};
-            dc.onmessage=(e)=>{try{this.broadcast(JSON.parse(e.data));}catch{}};}
-          async #wait(pc){await new Promise(r=>{pc.onicecandidate=(e)=>{if(!e.candidate)r();};setTimeout(r,1200);});}
-        }
-        
-        window.P2PSync=P2PSync;
-
-        /* --- Integrate with your cache --- */
-        
-        const getDocId = () => window.activeInspectionId;
-
-        window.getSnap = function() {
-            const docId = getDocId();
-            if (!docId) return { items: {} };
-            return JSON.parse(localStorage.getItem(`checklist:${docId}`) || '{"items":{}}');
-        }
-
-        function saveSnap(s) {
-            const docId = getDocId();
-            if (!docId) return;
-            localStorage.setItem(`checklist:${docId}`, JSON.stringify(s));
-            window.renderChecklist?.(); 
-        }
-
-        function applyOp(op) {
-          const s = window.getSnap();
-          const it = s.items[op.itemId] || (s.items[op.itemId] = {});
-          const f = it[op.field] || { ts: 0 };
-          if (op.ts >= f.ts) {
-            it[op.field] = { value: op.value, ts: op.ts, actor: op.actor };
-            saveSnap(s);
-          }
-        }
-
-        const sync = new P2PSync({
-            get docId() { return getDocId() },
-            getSnapshot: window.getSnap,
-            applyOp,
-            onStatus: (s) => document.getElementById("p2p-status").textContent = "Status: " + s
-        });
-
-        let pending = null;
-        let isScanningForAnswer = false;
-
-        /* --- Start session: show QR offer --- */
-        document.getElementById("p2p-start").onclick = async () => {
-          if (!getDocId()) {
-            showToast("Please select a checklist first.", "error");
-            return;
-          }
-          document.getElementById("qrcode").innerHTML = "";
-          const { sdp, pc } = await sync.createOffer();
-          pending = pc;
-          isScanningForAnswer = true;
-          new QRCode(document.getElementById("qrcode"), { text: sdp, width: 200, height: 200 });
-          startScan();
-        };
-
-        /* --- Join session: scan partner's QR (offer) --- */
-        document.getElementById("p2p-join").onclick = () => {
-            if (!getDocId()) {
-                showToast("Please select a checklist first.", "error");
-                return;
-            }
-            isScanningForAnswer = false;
-            startScan();
-        }
-
-        async function startScan() {
-          const scannerDiv = document.getElementById("scanner");
-          scannerDiv.classList.remove("hidden");
-          const video = document.getElementById("scan-video");
-          video.classList.add("scanning");
-          let stream;
-
-          try {
-            stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-          } catch (err) {
-              showToast("Could not access camera. Please grant permission.", "error");
-              scannerDiv.classList.add("hidden");
-              video.classList.remove("scanning");
-              return;
-          }
-          video.srcObject = stream;
-          video.play();
-
-          const canvas = document.createElement("canvas");
-          const ctx = canvas.getContext("2d", { willReadFrequently: true });
-          let animationFrameId;
-
-          const stopScan = () => {
-              cancelAnimationFrame(animationFrameId);
-              if (video.srcObject) {
-                  video.srcObject.getTracks().forEach(t => t.stop());
-                  video.srcObject = null;
-              }
-              scannerDiv.classList.add("hidden");
-              video.classList.remove("scanning");
-          };
-
-          const handleScannedCode = async (scannedData) => {
-            console.log("QR Code detected:", scannedData);
-            try {
-                const data = JSON.parse(scannedData);
-                if (data.type === 'offer' && !isScanningForAnswer) {
-                    console.log("Processing offer...");
-                    const { sdp, pc } = await sync.acceptOffer(scannedData);
-                    pending = pc;
-                    document.getElementById("qrcode").innerHTML = "";
-                    new QRCode(document.getElementById("qrcode"), { text: sdp, width: 200, height: 200 });
-                } else if (data.type === 'answer' && isScanningForAnswer) {
-                    console.log("Processing answer...");
-                    if (pending) {
-                        await sync.acceptAnswer(pending, scannedData);
-                        pending = null;
-                        isScanningForAnswer = false;
-                        document.getElementById("qrcode").innerHTML = "";
-                    }
-                } else {
-                   console.warn("Scanned QR data type/state mismatch. Continuing scan.");
-                   animationFrameId = requestAnimationFrame(tick); // Continue scanning
-                }
-            } catch (e) {
-                console.error("Error processing QR code data:", e);
-                showToast("Failed to process QR code.", "error");
-            }
-          };
-          
-          const tick = () => {
-            if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth > 0) {
-              canvas.height = video.videoHeight;
-              canvas.width = video.videoWidth;
-              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-              try {
-                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                const code = jsQR(imageData.data, imageData.width, imageData.height);
-                if (code && code.data) {
-                  stopScan();
-                  handleScannedCode(code.data);
-                  return; // Exit loop
-                }
-              } catch(e) {
-                 console.error("jsQR error:", e);
-              }
-            }
-            animationFrameId = requestAnimationFrame(tick);
-          };
-
-          document.getElementById("stop-scan").onclick = stopScan;
-          animationFrameId = requestAnimationFrame(tick);
-        }
-
-        /* --- Modify your toggleComplete to sync --- */
-        window.toggleComplete = function(itemId, checked) {
-          const op = sync.makeOp({ itemId, field: "completed", value: !!checked });
-          applyOp(op); 
-          sync.broadcast(op);
-        };
-    </script>
 </body>
 </html>
