@@ -82,6 +82,76 @@ function showToast(message, type = 'info') {
     }, 5000);
 }
 
+// --- SHARE TOKEN (COMPACT) HELPERS ---
+// Bytes <-> base64url
+function bytesToB64Url(bytes) {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  const b64 = btoa(bin);
+  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/,'');
+}
+function b64UrlToBytes(str) {
+  let b64 = str.replace(/-/g, '+').replace(/_/g, '/');
+  const pad = (4 - (b64.length % 4)) % 4;
+  if (pad) b64 += '='.repeat(pad);
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+// Pack checked indices (bitset)
+function packBitset(total, isCheckedIndex) {
+  const bytes = new Uint8Array(Math.ceil(total / 8));
+  for (let i = 0; i < total; i++) {
+    if (isCheckedIndex(i)) bytes[i >> 3] |= (1 << (i & 7));
+  }
+  return bytes;
+}
+// Unpack to array of indices
+function unpackBitset(bytes, total) {
+  const on = [];
+  for (let i = 0; i < total; i++) {
+    if (bytes[i >> 3] & (1 << (i & 7))) on.push(i);
+  }
+  return on;
+}
+// Parse share intent from URL (#m=... or ?merge=...)
+// Returns one of:
+//   { kind:'v2', key, bits }      // compact fragment
+//   { kind:'v1', key, ids }       // legacy query JSON with ids/devices
+function extractShareIntentFromURL() {
+  // 1) New compact fragment: #m=2.<key>.<bits>
+  if (location.hash && location.hash.includes('#m=')) {
+    const hash = location.hash.substring(1); // drop '#'
+    const params = new URLSearchParams(hash);
+    const m = params.get('m');
+    if (m) {
+      const parts = m.split('.');
+      if (parts.length >= 3 && parts[0] === '2') {
+        return { kind: 'v2', key: decodeURIComponent(parts[1]), bits: parts.slice(2).join('.') };
+      }
+    }
+  }
+
+  // 2) Legacy query: ?merge=<b64url(JSON)>
+  const q = new URLSearchParams(location.search).get('merge');
+  if (q) {
+    try {
+      // legacy payload was base64url(JSON) – accept ids or devices array
+      let b64 = q.replace(/-/g, '+').replace(/_/g, '/');
+      const pad = (4 - (b64.length % 4)) % 4;
+      if (pad) b64 += '='.repeat(pad);
+      const json = JSON.parse(decodeURIComponent(escape(atob(b64))));
+      const ids = Array.isArray(json.ids) ? json.ids
+               : Array.isArray(json.devices) ? json.devices
+               : [];
+      if (json && json.key && ids.length >= 0) return { kind: 'v1', key: json.key, ids };
+    } catch {}
+  }
+
+  return null;
+}
+
 // --- SHARE TOKEN HELPERS (Base64URL safe) ---
 function b64urlEncode(jsonObj) {
   const s = JSON.stringify(jsonObj);
@@ -445,53 +515,64 @@ class ChecklistWorkspace extends HTMLElement {
         setTimeout(() => this.checkMergeParamAndApply(), 0);
     }
     
-    // Runs once the component is ready to consume a pending merge token.
     checkMergeParamAndApply() {
       try {
-        const params = new URLSearchParams(location.search);
-        // Prefer pending token (set on initial load) so we don't decode twice.
-        const token = window.__pendingMergeToken || params.get('merge');
-        if (!token) return;
+        const intent = window.__pendingMergeIntent || extractShareIntentFromURL();
+        if (!intent) return;
 
-        const payload = b64urlDecodeToJSON(token);
-        // payload format we expect: { key: string, name: string, devices: string[] }
-        if (!payload || !payload.key || !Array.isArray(payload.devices)) {
-          showToast('Invalid share link.', 'error');
+        // If this workspace isn't for the target checklist, keep intent for later
+        if (this.checklistKey !== intent.key) {
+          window.__pendingMergeIntent = intent;
           return;
         }
 
-        // If current workspace is not the target checklist, just bail — initial load path sets it.
-        if (this.checklistKey !== payload.key) {
-          // Defensive: if someone switches checklists super fast, keep the token to retry.
-          window.__pendingMergeToken = token;
-          return;
+        // Figure out which IDs to merge
+        let idsToMerge = [];
+
+        if (intent.kind === 'v2') {
+          // Compact: decode bitset -> indices -> IDs
+          const total = this.data.devices.length;
+          const bytes = b64UrlToBytes(intent.bits);
+          const indices = unpackBitset(bytes, total);
+          idsToMerge = indices.map(i => this.getUniqueDeviceId(this.data.devices[i]));
+        } else {
+          // Legacy: already have IDs
+          idsToMerge = intent.ids || [];
         }
 
-        // Confirm with the user, then merge.
         const doMerge = () => {
-          let imported = 0;
-          payload.devices.forEach(id => {
+          let added = 0;
+          for (const id of idsToMerge) {
             if (!this.state.checkedDevices.has(id)) {
               this.state.checkedDevices.add(id);
-              imported++;
+              this.state.checkHistory.push(id);
+              added++;
             }
-          });
+          }
           this.saveInspectedState();
           this.updateUI();
           this.updateLastCheckedFooter();
-          showToast(`${imported} new devices merged.`, 'success');
 
-          // one-time: clear param from URL so refresh doesn't re-merge
+          if (added > 0) {
+            showToast(`Merged ${added} device(s) from shared link.`, 'success');
+          } else {
+            showToast('No new devices to merge — already up to date.', 'info');
+          }
+
+          // Clean URL so refresh doesn't re-merge
           try {
-            const url = new URL(location.href);
-            url.searchParams.delete('merge');
-            history.replaceState({}, '', url.toString());
-          } catch (_) {}
-          // clear the pending token
-          window.__pendingMergeToken = null;
+            const u = new URL(location.href);
+            u.searchParams.delete('merge'); // legacy
+            if (u.hash.includes('m=')) {
+              const frag = new URLSearchParams(u.hash.slice(1));
+              frag.delete('m');
+              u.hash = frag.toString() ? '#' + frag.toString() : '';
+            }
+            history.replaceState({}, '', u.toString());
+          } catch {}
+          window.__pendingMergeIntent = null;
         };
 
-        // If there is nothing new, we still ask so the inspector knows
         showConfirmationModal(
           `Merge shared progress into "${this.data?.name || 'current inspection'}"?`,
           doMerge
@@ -778,39 +859,46 @@ class ChecklistWorkspace extends HTMLElement {
         showToast('Exported inspected list as JSON.', 'success');
     }
 
+    // New: compact fragment link using bitset
     async createShareLink() {
-        if (!this.data) {
-            showToast('Open a checklist first.', 'info');
-            return;
-        }
-        const devices = Array.from(this.state.checkedDevices);
-        if (devices.length === 0) {
-            showToast('Nothing checked yet to share.', 'info');
-            return;
-        }
+      if (!this.data) {
+        showToast('Open a checklist first.', 'info');
+        return;
+      }
+      const total = this.data.devices.length;
 
-        const url = buildShareURL({
-          key: this.checklistKey,
-          name: this.data.name,
-          devices
-        });
+      // Build bitset over the ORIGINAL data order (not the filtered/sorted view)
+      const bytes = packBitset(total, (i) => {
+        const id = this.getUniqueDeviceId(this.data.devices[i]);
+        return this.state.checkedDevices.has(id);
+      });
+      const bits = bytesToB64Url(bytes);
 
-        // try the native share sheet if available; otherwise copy the link
+      // #m=2.<key>.<bits>   (fragment keeps payload out of servers/proxies)
+      const url = `${location.origin}${location.pathname}#m=2.${encodeURIComponent(this.checklistKey)}.${bits}`;
+
+      try {
         if (navigator.share) {
-          navigator.share({
-            title: `Shared progress • ${this.data.name}`,
-            text: 'Tap to merge into your inspection.',
+          await navigator.share({
+            title: `Omni Checklist — ${this.data.name}`,
+            text: `Tap to merge checked devices for "${this.data.name}".`,
             url
-          }).catch(() => { /* user canceled: ok */ });
-        } else {
-          navigator.clipboard.writeText(url).then(() => {
-            showToast('Share link copied to clipboard.', 'success');
-          }).catch(() => {
-            showToast('Copy failed — the link is in your downloads.', 'error');
-            // Fallback for insecure contexts or old browsers
-            window.prompt('Copy this share link:', url);
           });
+          showToast('Share link opened.', 'success');
+          return;
         }
+      } catch (e) {
+        // user canceled share; fall through
+        console.warn('navigator.share failed or canceled:', e);
+      }
+
+      // Fallback: copy to clipboard
+      try {
+        await navigator.clipboard.writeText(url);
+        showToast('Share link copied to clipboard.', 'success');
+      } catch {
+        window.prompt('Copy this share link:', url);
+      }
     }
    
     handleFileImport(event) {
@@ -930,24 +1018,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (mobilePickerContainer) mobilePickerContainer.appendChild(document.createElement('building-picker'));
     if (desktopPickerContainer) desktopPickerContainer.appendChild(document.createElement('building-picker'));
     
-    // If a share/merge token is present, pre-select that checklist so the workspace exists
+    // If a share token is present, pre-select its checklist so the workspace mounts
     try {
-      const params = new URLSearchParams(location.search);
-      const token = params.get('merge');
-      if (token) {
-        const payload = b64urlDecodeToJSON(token);
-        if (payload && payload.key) {
-          // Store for the workspace to apply after render
-          window.__pendingMergeToken = token;
-
-          // Ask the BuildingPicker to select this checklist (triggers 'checklist-selected')
-          // We can dispatch directly since the picker listens to select clicks anyway:
-          document.dispatchEvent(new CustomEvent('checklist-selected', { detail: { key: payload.key } }));
-        }
+      const intent = extractShareIntentFromURL();
+      if (intent && intent.key) {
+        // stash intent for the workspace to consume post-render
+        window.__pendingMergeIntent = intent;
+        // Ask the app to load that checklist (fires 'checklist-selected')
+        document.dispatchEvent(new CustomEvent('checklist-selected', { detail: { key: intent.key } }));
       }
     } catch (err) {
-      console.error('Merge token parse error:', err);
-      // don't block the app; just show an info toast
+      console.error('Share intent parse error:', err);
       showToast('Invalid share link.', 'error');
     }
 
@@ -1003,3 +1084,4 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.key === 'Escape' && !menuDropdown.classList.contains('hidden')) toggleMenu(false);
     });
 });
+
