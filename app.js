@@ -847,38 +847,65 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- HEADER MENU LOGIC ---
-    const menuContainer = $('#header-menu-container');
-    const menuButton = $('#menu-toggle-button');
-    const menuDropdown = $('#menu-dropdown');
-    
-    menuContainer.classList.add('invisible', 'opacity-50');
-    menuButton.disabled = true;
+const menuContainer = $('#header-menu-container');
+const menuButton = $('#menu-toggle-button');
+const menuDropdown = $('#menu-dropdown');
 
-    function toggleMenu(show) {
-        const isVisible = !menuDropdown.classList.contains('hidden');
-        if (typeof show !== 'boolean') show = !isVisible;
-        menuDropdown.classList.toggle('hidden', !show);
-        menuButton.setAttribute('aria-expanded', show);
+// Make sure the menu is always interactive (previous code hid/disabled it on load)
+menuContainer?.classList.remove('invisible', 'opacity-50');
+if (menuButton) menuButton.disabled = false;
+
+function toggleMenu(show) {
+  if (!menuDropdown || !menuButton) return;
+  const isVisible = !menuDropdown.classList.contains('hidden');
+  if (typeof show !== 'boolean') show = !isVisible;
+  menuDropdown.classList.toggle('hidden', !show);
+  menuButton.setAttribute('aria-expanded', String(show));
+}
+
+const openHandler = (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  toggleMenu();
+};
+
+// Robust open across touch/mouse
+if (menuButton) {
+  menuButton.addEventListener('pointerup', openHandler);
+  // Fallback for browsers not using Pointer Events
+  menuButton.addEventListener('click', openHandler);
+}
+
+// Menu item clicks → dispatch the same custom event your workspace listens for
+if (menuDropdown) {
+  menuDropdown.addEventListener('click', (e) => {
+    const item = e.target.closest('[data-menu-action]');
+    if (!item) return;
+
+    e.preventDefault();
+
+    // Guard actions if no checklist workspace is present yet
+    const hasWorkspace = !!document.querySelector('checklist-workspace');
+    if (!hasWorkspace) {
+      showToast('Select a checklist first.', 'info');
+      toggleMenu(false);
+      return;
     }
 
-    menuButton.addEventListener('click', (e) => {
-        e.stopPropagation();
-        toggleMenu();
-    });
+    const action = item.dataset.menuAction;
+    document.dispatchEvent(new CustomEvent('request-workspace-action', { detail: { action } }));
+    toggleMenu(false);
+  });
+}
 
-    menuDropdown.addEventListener('click', (e) => {
-        const action = e.target.closest('[data-menu-action]')?.dataset.menuAction;
-        if (action) {
-            e.preventDefault();
-            document.dispatchEvent(new CustomEvent('request-workspace-action', { detail: { action } }));
-            toggleMenu(false);
-        }
-    });
-
-    window.addEventListener('click', (e) => {
-        if (!menuContainer.contains(e.target)) toggleMenu(false);
-    });
-    window.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && !menuDropdown.classList.contains('hidden')) toggleMenu(false);
-    });
+// Close on outside tap/click
+document.addEventListener('pointerdown', (e) => {
+  if (menuContainer && !menuContainer.contains(e.target)) toggleMenu(false);
 });
+
+// Close on Escape
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !menuDropdown?.classList.contains('hidden')) toggleMenu(false);
+});
+}); // <-- keep this: closes the existing DOMContentLoaded callback
+
