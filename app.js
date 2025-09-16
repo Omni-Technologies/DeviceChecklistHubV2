@@ -642,30 +642,51 @@ class ChecklistWorkspace extends HTMLElement {
         this.updateUI();
     }
     
-    exportInspectedList() {
-        const inspectedDevices = this.data.devices.filter(d => this.state.checkedDevices.has(this.getUniqueDeviceId(d)));
-        if(inspectedDevices.length === 0) {
-            showToast('No inspected devices to export.', 'info');
+    // New exportInspectedList with Web Share API + fallback
+async exportInspectedList() {
+    const inspectedDevices = this.data.devices.filter(d => this.state.checkedDevices.has(this.getUniqueDeviceId(d)));
+    if (inspectedDevices.length === 0) {
+        showToast('No inspected devices to export.', 'info');
+        return;
+    }
+
+    const dataToExport = {
+        checklistName: this.data.name,
+        exportDate: new Date().toISOString(),
+        inspectedCount: inspectedDevices.length,
+        devices: inspectedDevices
+    };
+
+    const prettyJson = JSON.stringify(dataToExport, null, 2);
+    const blob = new Blob([prettyJson], { type: 'application/json' });
+    const filename = `${this.checklistKey}-inspected-${new Date().toISOString().slice(0,10)}.json`;
+
+    try {
+        const file = new File([blob], filename, { type: 'application/json', lastModified: Date.now() });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({
+                files: [file],
+                title: `Export: ${this.data.name}`,
+                text: `Exported ${inspectedDevices.length} inspected device(s) from "${this.data.name}".`
+            });
+            showToast('Shared inspected list.', 'success');
             return;
         }
-        const dataToExport = {
-            checklistName: this.data.name,
-            exportDate: new Date().toISOString(),
-            inspectedCount: inspectedDevices.length,
-            devices: inspectedDevices
-        };
-        const data = JSON.stringify(dataToExport, null, 2);
-        const blob = new Blob([data], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${this.checklistKey}-inspected-${new Date().toISOString().slice(0,10)}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        showToast('Exported inspected list as JSON.', 'success');
+    } catch (err) {
+        console.warn('Share failed or was canceled; falling back to download:', err);
     }
+
+    // Fallback: keep your old auto-download
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Exported inspected list as JSON.', 'success');
+}
     
     handleFileImport(event) {
         const file = event.target.files[0];
