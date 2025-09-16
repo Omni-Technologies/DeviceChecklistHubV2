@@ -643,29 +643,75 @@ class ChecklistWorkspace extends HTMLElement {
     }
     
     exportInspectedList() {
-        const inspectedDevices = this.data.devices.filter(d => this.state.checkedDevices.has(this.getUniqueDeviceId(d)));
-        if(inspectedDevices.length === 0) {
-            showToast('No inspected devices to export.', 'info');
-            return;
-        }
-        const dataToExport = {
-            checklistName: this.data.name,
-            exportDate: new Date().toISOString(),
-            inspectedCount: inspectedDevices.length,
-            devices: inspectedDevices
-        };
-        const data = JSON.stringify(dataToExport, null, 2);
-        const blob = new Blob([data], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${this.checklistKey}-inspected-${new Date().toISOString().slice(0,10)}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        showToast('Exported inspected list as JSON.', 'success');
+    const inspectedDevices = this.data.devices.filter(d =>
+        this.state.checkedDevices.has(this.getUniqueDeviceId(d))
+    );
+
+    if (inspectedDevices.length === 0) {
+        showToast('No inspected devices to export.', 'info');
+        return;
     }
+
+    // Prepare export payload (same data you already exported)
+    const dataToExport = {
+        checklistName: this.data.name,
+        exportDate: new Date().toISOString(),
+        inspectedCount: inspectedDevices.length,
+        devices: inspectedDevices
+    };
+    const pretty = JSON.stringify(dataToExport, null, 2);
+
+    const filename = `${this.checklistKey}-inspected-${new Date().toISOString().slice(0,10)}.json`;
+    const blob = new Blob([pretty], { type: 'application/json' });
+
+    // Try iOS/macOS native Share Sheet first (Messages, AirDrop, Mail…)
+    try {
+        // File is required for Web Share with files on iOS Safari
+        const file = (typeof File !== 'undefined')
+            ? new File([blob], filename, { type: 'application/json' })
+            : null;
+
+        const shareData = {
+            title: 'Omni Checklist',
+            text: `${this.data.name} — ${inspectedDevices.length} devices inspected`,
+            files: file ? [file] : undefined
+        };
+
+        if (navigator.canShare && shareData.files && navigator.canShare({ files: shareData.files })) {
+            navigator.share(shareData)
+                .then(() => {
+                    showToast('Shared from the system share sheet.', 'success');
+                })
+                .catch(err => {
+                    // User canceled or share failed — silently fall back to download
+                    if (err && err.name !== 'AbortError') {
+                        console.warn('Share failed, falling back to download:', err);
+                    }
+                    this._downloadJson(blob, filename);
+                });
+            return; // we attempted share; stop here
+        }
+    } catch (e) {
+        // Any unexpected error — fall back to download
+        console.warn('Share not available, falling back to download:', e);
+    }
+
+    // Fallback: keep your current download behavior
+    this._downloadJson(blob, filename);
+},
+
+// Helper for download fallback (kept within the same class)
+_downloadJson(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Exported inspected list as JSON.', 'success');
+}
     
     handleFileImport(event) {
         const file = event.target.files[0];
