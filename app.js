@@ -643,75 +643,29 @@ class ChecklistWorkspace extends HTMLElement {
     }
     
     exportInspectedList() {
-    const inspectedDevices = this.data.devices.filter(d =>
-        this.state.checkedDevices.has(this.getUniqueDeviceId(d))
-    );
-
-    if (inspectedDevices.length === 0) {
-        showToast('No inspected devices to export.', 'info');
-        return;
-    }
-
-    // Prepare export payload (same data you already exported)
-    const dataToExport = {
-        checklistName: this.data.name,
-        exportDate: new Date().toISOString(),
-        inspectedCount: inspectedDevices.length,
-        devices: inspectedDevices
-    };
-    const pretty = JSON.stringify(dataToExport, null, 2);
-
-    const filename = `${this.checklistKey}-inspected-${new Date().toISOString().slice(0,10)}.json`;
-    const blob = new Blob([pretty], { type: 'application/json' });
-
-    // Try iOS/macOS native Share Sheet first (Messages, AirDrop, Mail…)
-    try {
-        // File is required for Web Share with files on iOS Safari
-        const file = (typeof File !== 'undefined')
-            ? new File([blob], filename, { type: 'application/json' })
-            : null;
-
-        const shareData = {
-            title: 'Omni Checklist',
-            text: `${this.data.name} — ${inspectedDevices.length} devices inspected`,
-            files: file ? [file] : undefined
-        };
-
-        if (navigator.canShare && shareData.files && navigator.canShare({ files: shareData.files })) {
-            navigator.share(shareData)
-                .then(() => {
-                    showToast('Shared from the system share sheet.', 'success');
-                })
-                .catch(err => {
-                    // User canceled or share failed — silently fall back to download
-                    if (err && err.name !== 'AbortError') {
-                        console.warn('Share failed, falling back to download:', err);
-                    }
-                    this._downloadJson(blob, filename);
-                });
-            return; // we attempted share; stop here
+        const inspectedDevices = this.data.devices.filter(d => this.state.checkedDevices.has(this.getUniqueDeviceId(d)));
+        if(inspectedDevices.length === 0) {
+            showToast('No inspected devices to export.', 'info');
+            return;
         }
-    } catch (e) {
-        // Any unexpected error — fall back to download
-        console.warn('Share not available, falling back to download:', e);
+        const dataToExport = {
+            checklistName: this.data.name,
+            exportDate: new Date().toISOString(),
+            inspectedCount: inspectedDevices.length,
+            devices: inspectedDevices
+        };
+        const data = JSON.stringify(dataToExport, null, 2);
+        const blob = new Blob([data], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${this.checklistKey}-inspected-${new Date().toISOString().slice(0,10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('Exported inspected list as JSON.', 'success');
     }
-
-    // Fallback: keep your current download behavior
-    this._downloadJson(blob, filename);
-},
-
-// Helper for download fallback (kept within the same class)
-_downloadJson(blob, filename) {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast('Exported inspected list as JSON.', 'success');
-}
     
     handleFileImport(event) {
         const file = event.target.files[0];
@@ -847,65 +801,38 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- HEADER MENU LOGIC ---
-const menuContainer = $('#header-menu-container');
-const menuButton = $('#menu-toggle-button');
-const menuDropdown = $('#menu-dropdown');
+    const menuContainer = $('#header-menu-container');
+    const menuButton = $('#menu-toggle-button');
+    const menuDropdown = $('#menu-dropdown');
+    
+    menuContainer.classList.add('invisible', 'opacity-50');
+    menuButton.disabled = true;
 
-// Make sure the menu is always interactive (previous code hid/disabled it on load)
-menuContainer?.classList.remove('invisible', 'opacity-50');
-if (menuButton) menuButton.disabled = false;
-
-function toggleMenu(show) {
-  if (!menuDropdown || !menuButton) return;
-  const isVisible = !menuDropdown.classList.contains('hidden');
-  if (typeof show !== 'boolean') show = !isVisible;
-  menuDropdown.classList.toggle('hidden', !show);
-  menuButton.setAttribute('aria-expanded', String(show));
-}
-
-const openHandler = (e) => {
-  e.preventDefault();
-  e.stopPropagation();
-  toggleMenu();
-};
-
-// Robust open across touch/mouse
-if (menuButton) {
-  menuButton.addEventListener('pointerup', openHandler);
-  // Fallback for browsers not using Pointer Events
-  menuButton.addEventListener('click', openHandler);
-}
-
-// Menu item clicks → dispatch the same custom event your workspace listens for
-if (menuDropdown) {
-  menuDropdown.addEventListener('click', (e) => {
-    const item = e.target.closest('[data-menu-action]');
-    if (!item) return;
-
-    e.preventDefault();
-
-    // Guard actions if no checklist workspace is present yet
-    const hasWorkspace = !!document.querySelector('checklist-workspace');
-    if (!hasWorkspace) {
-      showToast('Select a checklist first.', 'info');
-      toggleMenu(false);
-      return;
+    function toggleMenu(show) {
+        const isVisible = !menuDropdown.classList.contains('hidden');
+        if (typeof show !== 'boolean') show = !isVisible;
+        menuDropdown.classList.toggle('hidden', !show);
+        menuButton.setAttribute('aria-expanded', show);
     }
 
-    const action = item.dataset.menuAction;
-    document.dispatchEvent(new CustomEvent('request-workspace-action', { detail: { action } }));
-    toggleMenu(false);
-  });
-}
+    menuButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleMenu();
+    });
 
-// Close on outside tap/click
-document.addEventListener('pointerdown', (e) => {
-  if (menuContainer && !menuContainer.contains(e.target)) toggleMenu(false);
+    menuDropdown.addEventListener('click', (e) => {
+        const action = e.target.closest('[data-menu-action]')?.dataset.menuAction;
+        if (action) {
+            e.preventDefault();
+            document.dispatchEvent(new CustomEvent('request-workspace-action', { detail: { action } }));
+            toggleMenu(false);
+        }
+    });
+
+    window.addEventListener('click', (e) => {
+        if (!menuContainer.contains(e.target)) toggleMenu(false);
+    });
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !menuDropdown.classList.contains('hidden')) toggleMenu(false);
+    });
 });
-
-// Close on Escape
-window.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !menuDropdown?.classList.contains('hidden')) toggleMenu(false);
-});
-}); // <-- keep this: closes the existing DOMContentLoaded callback
-
