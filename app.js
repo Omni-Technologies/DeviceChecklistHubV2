@@ -82,6 +82,31 @@ function showToast(message, type = 'info') {
     }, 5000);
 }
 
+// --- SHARE TOKEN HELPERS (Base64URL safe) ---
+function b64urlEncode(jsonObj) {
+  const s = JSON.stringify(jsonObj);
+  const b64 = btoa(unescape(encodeURIComponent(s)));
+  // URL-safe: +/ -> -_ and strip =
+  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/,'');
+}
+function b64urlDecodeToJSON(b64url) {
+  if (!b64url) throw new Error('Missing token');
+  // restore padding
+  let b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+  const pad = b64.length % 4;
+  if (pad === 2) b64 += '==';
+  else if (pad === 3) b64 += '=';
+  else if (pad !== 0) throw new Error('Bad token');
+  const str = decodeURIComponent(escape(atob(b64)));
+  return JSON.parse(str);
+}
+
+function buildShareURL({ key, name, devices }) {
+  const base = `${location.origin}${location.pathname}`;
+  const token = b64urlEncode({ key, name, devices });
+  return `${base}?merge=${token}`;
+}
+
 // --- MODAL LOGIC ---
 const modal = $('#confirmation-modal');
 const modalPanel = $('#confirmation-modal-panel');
@@ -273,7 +298,6 @@ class ChecklistWorkspace extends HTMLElement {
             
             this.loadInspectedState();
             this.render();
-            this.checkMergeParamAndApply();
  
         } catch (error) {
             showToast(error.message, 'error');
@@ -417,6 +441,66 @@ class ChecklistWorkspace extends HTMLElement {
         } else {
              this.updateDeviceCounter();
         }
+        // After rendering, try to apply any pending merge
+        setTimeout(() => this.checkMergeParamAndApply(), 0);
+    }
+    
+    // Runs once the component is ready to consume a pending merge token.
+    checkMergeParamAndApply() {
+      try {
+        const params = new URLSearchParams(location.search);
+        // Prefer pending token (set on initial load) so we don't decode twice.
+        const token = window.__pendingMergeToken || params.get('merge');
+        if (!token) return;
+
+        const payload = b64urlDecodeToJSON(token);
+        // payload format we expect: { key: string, name: string, devices: string[] }
+        if (!payload || !payload.key || !Array.isArray(payload.devices)) {
+          showToast('Invalid share link.', 'error');
+          return;
+        }
+
+        // If current workspace is not the target checklist, just bail — initial load path sets it.
+        if (this.checklistKey !== payload.key) {
+          // Defensive: if someone switches checklists super fast, keep the token to retry.
+          window.__pendingMergeToken = token;
+          return;
+        }
+
+        // Confirm with the user, then merge.
+        const doMerge = () => {
+          let imported = 0;
+          payload.devices.forEach(id => {
+            if (!this.state.checkedDevices.has(id)) {
+              this.state.checkedDevices.add(id);
+              imported++;
+            }
+          });
+          this.saveInspectedState();
+          this.updateUI();
+          this.updateLastCheckedFooter();
+          showToast(`${imported} new devices merged.`, 'success');
+
+          // one-time: clear param from URL so refresh doesn't re-merge
+          try {
+            const url = new URL(location.href);
+            url.searchParams.delete('merge');
+            history.replaceState({}, '', url.toString());
+          } catch (_) {}
+          // clear the pending token
+          window.__pendingMergeToken = null;
+        };
+
+        // If there is nothing new, we still ask so the inspector knows
+        showConfirmationModal(
+          `Merge shared progress into "${this.data?.name || 'current inspection'}"?`,
+          doMerge
+        );
+
+      } catch (err) {
+        console.error('Merge apply error:', err);
+        showToast('Could not apply shared progress.', 'error');
+      }
     }
 
    renderAccordionHTML(devices) {
@@ -640,8 +724,8 @@ class ChecklistWorkspace extends HTMLElement {
         }
         
         if (action === 'share-link') {
-    this.createShareLink();
-    return;
+            this.createShareLink();
+            return;
         }
  
         this.saveInspectedState();
@@ -649,153 +733,85 @@ class ChecklistWorkspace extends HTMLElement {
         this.updateUI();
     }
     
-    // New exportInspectedList with Web Share API + fallback
-async exportInspectedList() {
-    const inspectedDevices = this.data.devices.filter(d => this.state.checkedDevices.has(this.getUniqueDeviceId(d)));
-    if (inspectedDevices.length === 0) {
-        showToast('No inspected devices to export.', 'info');
-        return;
-    }
-
-    const dataToExport = {
-        checklistName: this.data.name,
-        exportDate: new Date().toISOString(),
-        inspectedCount: inspectedDevices.length,
-        devices: inspectedDevices
-    };
-
-    const prettyJson = JSON.stringify(dataToExport, null, 2);
-    const blob = new Blob([prettyJson], { type: 'application/json' });
-    const filename = `${this.checklistKey}-inspected-${new Date().toISOString().slice(0,10)}.json`;
-
-    try {
-        const file = new File([blob], filename, { type: 'application/json', lastModified: Date.now() });
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            await navigator.share({
-                files: [file],
-                title: `Export: ${this.data.name}`,
-                text: `Exported ${inspectedDevices.length} inspected device(s) from "${this.data.name}".`
-            });
-            showToast('Shared inspected list.', 'success');
+    async exportInspectedList() {
+        const inspectedDevices = this.data.devices.filter(d => this.state.checkedDevices.has(this.getUniqueDeviceId(d)));
+        if (inspectedDevices.length === 0) {
+            showToast('No inspected devices to export.', 'info');
             return;
         }
-    } catch (err) {
-        console.warn('Share failed or was canceled; falling back to download:', err);
+
+        const dataToExport = {
+            checklistName: this.data.name,
+            exportDate: new Date().toISOString(),
+            inspectedCount: inspectedDevices.length,
+            devices: inspectedDevices
+        };
+
+        const prettyJson = JSON.stringify(dataToExport, null, 2);
+        const blob = new Blob([prettyJson], { type: 'application/json' });
+        const filename = `${this.checklistKey}-inspected-${new Date().toISOString().slice(0,10)}.json`;
+
+        try {
+            const file = new File([blob], filename, { type: 'application/json', lastModified: Date.now() });
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                    files: [file],
+                    title: `Export: ${this.data.name}`,
+                    text: `Exported ${inspectedDevices.length} inspected device(s) from "${this.data.name}".`
+                });
+                showToast('Shared inspected list.', 'success');
+                return;
+            }
+        } catch (err) {
+            console.warn('Share failed or was canceled; falling back to download:', err);
+        }
+
+        // Fallback: keep your old auto-download
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('Exported inspected list as JSON.', 'success');
     }
 
-    // Fallback: keep your old auto-download
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast('Exported inspected list as JSON.', 'success');
-}
- // --- Share Progress (link-based) ---
+    async createShareLink() {
+        if (!this.data) {
+            showToast('Open a checklist first.', 'info');
+            return;
+        }
+        const devices = Array.from(this.state.checkedDevices);
+        if (devices.length === 0) {
+            showToast('Nothing checked yet to share.', 'info');
+            return;
+        }
 
-// Helper: base64url (no padding) encode/decode
-b64urlEncode(str) {
-    const b64 = btoa(unescape(encodeURIComponent(str)));
-    return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/,'');
-}
-b64urlDecode(str) {
-    const b64 = str.replace(/-/g, '+').replace(/_/g, '/');
-    const pad = '='.repeat((4 - (b64.length % 4)) % 4);
-    return decodeURIComponent(escape(atob(b64 + pad)));
-}
+        const url = buildShareURL({
+          key: this.checklistKey,
+          name: this.data.name,
+          devices
+        });
 
-// 1) Creator: build a URL the other inspector can open to merge checks
-async createShareLink() {
-    if (!this.data) {
-        showToast('Open a checklist first.', 'info');
-        return;
-    }
-    const ids = Array.from(this.state.checkedDevices);
-    if (ids.length === 0) {
-        showToast('Nothing checked yet to share.', 'info');
-        return;
-    }
-
-    const payload = { key: this.checklistKey, ids, ts: Date.now() };
-    const json = JSON.stringify(payload);
-    const encoded = this.b64urlEncode(json);
-
-    // Keep same path; add ?merge=<payload>
-    const url = `${location.origin}${location.pathname}?merge=${encoded}`;
-
-    // Try native share (URL only — most mobile browsers support this reliably)
-    try {
+        // try the native share sheet if available; otherwise copy the link
         if (navigator.share) {
-            await navigator.share({
-                title: `Omni Checklist — ${this.data.name}`,
-                text: `Tap to merge checked devices for "${this.data.name}".`,
-                url
-            });
-            showToast('Share link opened.', 'success');
-            return;
+          navigator.share({
+            title: `Shared progress • ${this.data.name}`,
+            text: 'Tap to merge into your inspection.',
+            url
+          }).catch(() => { /* user canceled: ok */ });
+        } else {
+          navigator.clipboard.writeText(url).then(() => {
+            showToast('Share link copied to clipboard.', 'success');
+          }).catch(() => {
+            showToast('Copy failed — the link is in your downloads.', 'error');
+            // Fallback for insecure contexts or old browsers
+            window.prompt('Copy this share link:', url);
+          });
         }
-    } catch (e) {
-        console.warn('navigator.share failed or canceled:', e);
     }
-
-    // Fallback: copy link to clipboard
-    try {
-        await navigator.clipboard.writeText(url);
-        showToast('Share link copied to clipboard.', 'success');
-    } catch {
-        window.prompt('Copy this share link:', url);
-    }
-}
-
-// 2) Receiver: if URL has ?merge=..., auto-merge into current checklist
-checkMergeParamAndApply() {
-    const params = new URLSearchParams(location.search);
-    const token = params.get('merge');
-    if (!token) return;
-
-    let payload;
-    try {
-        const json = this.b64urlDecode(token);
-        payload = JSON.parse(json);
-    } catch (e) {
-        console.error('Invalid merge token:', e);
-        showToast('Invalid share link.', 'error');
-        return;
-    }
-
-    // Only merge if the share is for THIS checklist
-    if (!payload || payload.key !== this.checklistKey || !Array.isArray(payload.ids)) {
-        showToast('Share link does not match this checklist.', 'error');
-        return;
-    }
-
-    // Merge: add only missing IDs
-    let added = 0;
-    payload.ids.forEach(id => {
-        if (!this.state.checkedDevices.has(id)) {
-            this.state.checkedDevices.add(id);
-            this.state.checkHistory.push(id);
-            added++;
-        }
-    });
-
-    if (added > 0) {
-        this.saveInspectedState();
-        this.updateUI();
-        this.updateLastCheckedFooter();
-        showToast(`Merged ${added} device(s) from share link.`, 'success');
-    } else {
-        showToast('No new devices to merge — already up to date.', 'info');
-    }
-
-    // Clean the URL so refresh doesn’t re-merge
-    params.delete('merge');
-    const newUrl = `${location.pathname}${params.toString() ? '?' + params.toString() : ''}${location.hash}`;
-    history.replaceState(null, '', newUrl);
-}
    
     handleFileImport(event) {
         const file = event.target.files[0];
@@ -914,6 +930,27 @@ document.addEventListener('DOMContentLoaded', () => {
     if (mobilePickerContainer) mobilePickerContainer.appendChild(document.createElement('building-picker'));
     if (desktopPickerContainer) desktopPickerContainer.appendChild(document.createElement('building-picker'));
     
+    // If a share/merge token is present, pre-select that checklist so the workspace exists
+    try {
+      const params = new URLSearchParams(location.search);
+      const token = params.get('merge');
+      if (token) {
+        const payload = b64urlDecodeToJSON(token);
+        if (payload && payload.key) {
+          // Store for the workspace to apply after render
+          window.__pendingMergeToken = token;
+
+          // Ask the BuildingPicker to select this checklist (triggers 'checklist-selected')
+          // We can dispatch directly since the picker listens to select clicks anyway:
+          document.dispatchEvent(new CustomEvent('checklist-selected', { detail: { key: payload.key } }));
+        }
+      }
+    } catch (err) {
+      console.error('Merge token parse error:', err);
+      // don't block the app; just show an info toast
+      showToast('Invalid share link.', 'error');
+    }
+
     document.addEventListener('checklist-selected', (e) => {
         const { key } = e.detail;
         const workspaceContainer = $('#checklist-workspace');
