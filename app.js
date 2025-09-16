@@ -273,6 +273,8 @@ class ChecklistWorkspace extends HTMLElement {
             
             this.loadInspectedState();
             this.render();
+            this.checkMergeParamAndApply();
+ 
         } catch (error) {
             showToast(error.message, 'error');
             this.innerHTML = `<div class="text-center py-20 text-red-500">${escapeHTML(error.message)}</div>`;
@@ -637,6 +639,11 @@ class ChecklistWorkspace extends HTMLElement {
             return;
         }
         
+        if (action === 'share-link') {
+    this.createShareLink();
+    return;
+        }
+ 
         this.saveInspectedState();
         this.updateLastCheckedFooter();
         this.updateUI();
@@ -687,7 +694,109 @@ async exportInspectedList() {
     URL.revokeObjectURL(url);
     showToast('Exported inspected list as JSON.', 'success');
 }
-    
+ // --- Share Progress (link-based) ---
+
+// Helper: base64url (no padding) encode/decode
+b64urlEncode(str) {
+    const b64 = btoa(unescape(encodeURIComponent(str)));
+    return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/,'');
+}
+b64urlDecode(str) {
+    const b64 = str.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = '='.repeat((4 - (b64.length % 4)) % 4);
+    return decodeURIComponent(escape(atob(b64 + pad)));
+}
+
+// 1) Creator: build a URL the other inspector can open to merge checks
+async createShareLink() {
+    if (!this.data) {
+        showToast('Open a checklist first.', 'info');
+        return;
+    }
+    const ids = Array.from(this.state.checkedDevices);
+    if (ids.length === 0) {
+        showToast('Nothing checked yet to share.', 'info');
+        return;
+    }
+
+    const payload = { key: this.checklistKey, ids, ts: Date.now() };
+    const json = JSON.stringify(payload);
+    const encoded = this.b64urlEncode(json);
+
+    // Keep same path; add ?merge=<payload>
+    const url = `${location.origin}${location.pathname}?merge=${encoded}`;
+
+    // Try native share (URL only — most mobile browsers support this reliably)
+    try {
+        if (navigator.share) {
+            await navigator.share({
+                title: `Omni Checklist — ${this.data.name}`,
+                text: `Tap to merge checked devices for "${this.data.name}".`,
+                url
+            });
+            showToast('Share link opened.', 'success');
+            return;
+        }
+    } catch (e) {
+        console.warn('navigator.share failed or canceled:', e);
+    }
+
+    // Fallback: copy link to clipboard
+    try {
+        await navigator.clipboard.writeText(url);
+        showToast('Share link copied to clipboard.', 'success');
+    } catch {
+        window.prompt('Copy this share link:', url);
+    }
+}
+
+// 2) Receiver: if URL has ?merge=..., auto-merge into current checklist
+checkMergeParamAndApply() {
+    const params = new URLSearchParams(location.search);
+    const token = params.get('merge');
+    if (!token) return;
+
+    let payload;
+    try {
+        const json = this.b64urlDecode(token);
+        payload = JSON.parse(json);
+    } catch (e) {
+        console.error('Invalid merge token:', e);
+        showToast('Invalid share link.', 'error');
+        return;
+    }
+
+    // Only merge if the share is for THIS checklist
+    if (!payload || payload.key !== this.checklistKey || !Array.isArray(payload.ids)) {
+        showToast('Share link does not match this checklist.', 'error');
+        return;
+    }
+
+    // Merge: add only missing IDs
+    let added = 0;
+    payload.ids.forEach(id => {
+        if (!this.state.checkedDevices.has(id)) {
+            this.state.checkedDevices.add(id);
+            this.state.checkHistory.push(id);
+            added++;
+        }
+    });
+
+    if (added > 0) {
+        this.saveInspectedState();
+        this.updateUI();
+        this.updateLastCheckedFooter();
+        showToast(`Merged ${added} device(s) from share link.`, 'success');
+    } else {
+        showToast('No new devices to merge — already up to date.', 'info');
+    }
+
+    // Clean the URL so refresh doesn’t re-merge
+    params.delete('merge');
+    const newUrl = `${location.pathname}${params.toString() ? '?' + params.toString() : ''}${location.hash}`;
+    history.replaceState(null, '', newUrl);
+}
+   
     handleFileImport(event) {
         const file = event.target.files[0];
         if (!file) return; // User cancelled the dialog
