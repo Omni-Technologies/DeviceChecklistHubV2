@@ -1,4 +1,4 @@
-import { CHECKLISTS } from './checklists.js';
+import { CHECKLISTS } from './checklists.js?v=2025-09-24';
 
 // --- UTILITIES ---
 const $ = (selector, parent = document) => parent.querySelector(selector);
@@ -1084,4 +1084,3 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.key === 'Escape' && !menuDropdown.classList.contains('hidden')) toggleMenu(false);
     });
 });
-
