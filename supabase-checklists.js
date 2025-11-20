@@ -179,9 +179,88 @@ export async function migrateExistingChecklistsOnce() {
   alert("✅ Migration to Supabase finished. Check console for summary.");
 }
 
-// Also expose it globally for easy console access
+/**
+ * Re-migrate devices for a single checklist from CHECKLISTS into Supabase.
+ * Use this if a checklist exists in Supabase but has missing devices.
+ *
+ * Example in console:
+ *   remigrateChecklistByCompanyName("McFarland Public Safety Center");
+ */
+export async function remigrateChecklistByCompanyName(nameOrKey) {
+  // 1) Find the checklist in the local CHECKLISTS array
+  const cl = CHECKLISTS.find(
+    (c) => c.name === nameOrKey || c.key === nameOrKey
+  );
+
+  if (!cl) {
+    alert(`No checklist found in CHECKLISTS for "${nameOrKey}".`);
+    return;
+  }
+
+  const companyName = cl.name || cl.key;
+  const checklistName =
+    cl.location || cl.name || cl.key || "Unnamed Checklist";
+
+  // 2) Find the company row in Supabase
+  const { data: company, error: companyErr } = await db
+    .from("companies")
+    .select("*")
+    .eq("name", companyName)
+    .maybeSingle();
+
+  if (companyErr) {
+    console.error("Error loading company:", companyErr);
+    alert("Error loading company. See console.");
+    return;
+  }
+  if (!company) {
+    alert(`Company "${companyName}" not found in Supabase.`);
+    return;
+  }
+
+  // 3) Find (or create) the checklist row
+  let { data: checklist, error: checklistErr } = await db
+    .from("checklists")
+    .select("*")
+    .eq("company_id", company.id)
+    .eq("name", checklistName)
+    .maybeSingle();
+
+  if (checklistErr && checklistErr.code !== "PGRST116") {
+    console.error("Error loading checklist:", checklistErr);
+    alert("Error loading checklist. See console.");
+    return;
+  }
+
+  if (!checklist) {
+    // If somehow missing, create a new one
+    checklist = await createChecklist(company.id, checklistName);
+  }
+
+  // 4) Delete any existing devices for that checklist (if any)
+  const { error: deleteErr } = await db
+    .from("devices")
+    .delete()
+    .eq("checklist_id", checklist.id);
+
+  if (deleteErr) {
+    console.error("Error deleting old devices:", deleteErr);
+    alert("Error deleting old devices. See console.");
+    return;
+  }
+
+  // 5) Insert fresh devices from CHECKLISTS
+  await insertDevicesForChecklist(checklist.id, cl.devices || []);
+
+  alert(
+    `Re-migrated devices for "${companyName}" / "${checklistName}".`
+  );
+}
+
+// Expose helpers globally for easy console access
 window.migrateExistingChecklistsOnce = migrateExistingChecklistsOnce;
+window.remigrateChecklistByCompanyName = remigrateChecklistByCompanyName;
 
 console.log(
-  "supabase-checklists.js loaded. You can run migrateExistingChecklistsOnce() from the console."
+  "supabase-checklists.js loaded. You can run migrateExistingChecklistsOnce() or remigrateChecklistByCompanyName(name) from the console."
 );
