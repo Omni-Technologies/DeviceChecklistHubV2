@@ -1,8 +1,11 @@
-import { CHECKLISTS } from './checklists.js?v=2025-09-24';
+// app.js — Supabase-backed version (no CHECKLISTS import)
 
 // --- UTILITIES ---
 const $ = (selector, parent = document) => parent.querySelector(selector);
 const $$ = (selector, parent = document) => parent.querySelectorAll(selector);
+
+// Supabase client from supabase-config.js
+const db = window.supabaseClient;
 
 function debounce(func, delay = 250) {
     let timeoutId;
@@ -23,9 +26,9 @@ function escapeHTML(str) {
 
 /**
  * Normalizes device data from different sources into a consistent format.
+ * (Kept for compatibility with imports / future formats.)
  */
 function normalizeDevice(device) {
-    // This function handles different potential structures for a device object.
     const isExcelFormat = device.hasOwnProperty('System Address ( Node : Card : Device )');
     if (isExcelFormat) {
         const systemAddress = device['System Address ( Node : Card : Device )'] || 'N/A:N/A:N/A';
@@ -41,7 +44,6 @@ function normalizeDevice(device) {
             messages: (device['Location Text'] || '').replace(/\n/g, ' '),
         };
     } else {
-        // This handles the original hardcoded format and the exported JSON format.
         return {
             loop: device.loop || '',
             address: device.address || '',
@@ -83,7 +85,6 @@ function showToast(message, type = 'info') {
 }
 
 // --- SHARE TOKEN (COMPACT) HELPERS ---
-// Bytes <-> base64url
 function bytesToB64Url(bytes) {
   let bin = '';
   for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
@@ -99,7 +100,6 @@ function b64UrlToBytes(str) {
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out;
 }
-// Pack checked indices (bitset)
 function packBitset(total, isCheckedIndex) {
   const bytes = new Uint8Array(Math.ceil(total / 8));
   for (let i = 0; i < total; i++) {
@@ -107,7 +107,6 @@ function packBitset(total, isCheckedIndex) {
   }
   return bytes;
 }
-// Unpack to array of indices
 function unpackBitset(bytes, total) {
   const on = [];
   for (let i = 0; i < total; i++) {
@@ -115,14 +114,11 @@ function unpackBitset(bytes, total) {
   }
   return on;
 }
+
 // Parse share intent from URL (#m=... or ?merge=...)
-// Returns one of:
-//   { kind:'v2', key, bits }      // compact fragment
-//   { kind:'v1', key, ids }       // legacy query JSON with ids/devices
 function extractShareIntentFromURL() {
-  // 1) New compact fragment: #m=2.<key>.<bits>
   if (location.hash && location.hash.includes('#m=')) {
-    const hash = location.hash.substring(1); // drop '#'
+    const hash = location.hash.substring(1);
     const params = new URLSearchParams(hash);
     const m = params.get('m');
     if (m) {
@@ -132,12 +128,9 @@ function extractShareIntentFromURL() {
       }
     }
   }
-
-  // 2) Legacy query: ?merge=<b64url(JSON)>
   const q = new URLSearchParams(location.search).get('merge');
   if (q) {
     try {
-      // legacy payload was base64url(JSON) – accept ids or devices array
       let b64 = q.replace(/-/g, '+').replace(/_/g, '/');
       const pad = (4 - (b64.length % 4)) % 4;
       if (pad) b64 += '='.repeat(pad);
@@ -148,20 +141,17 @@ function extractShareIntentFromURL() {
       if (json && json.key && ids.length >= 0) return { kind: 'v1', key: json.key, ids };
     } catch {}
   }
-
   return null;
 }
 
-// --- SHARE TOKEN HELPERS (Base64URL safe) ---
+// legacy token helpers (kept for compatibility)
 function b64urlEncode(jsonObj) {
   const s = JSON.stringify(jsonObj);
   const b64 = btoa(unescape(encodeURIComponent(s)));
-  // URL-safe: +/ -> -_ and strip =
   return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/,'');
 }
 function b64urlDecodeToJSON(b64url) {
   if (!b64url) throw new Error('Missing token');
-  // restore padding
   let b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
   const pad = b64.length % 4;
   if (pad === 2) b64 += '==';
@@ -170,7 +160,6 @@ function b64urlDecodeToJSON(b64url) {
   const str = decodeURIComponent(escape(atob(b64)));
   return JSON.parse(str);
 }
-
 function buildShareURL({ key, name, devices }) {
   const base = `${location.origin}${location.pathname}`;
   const token = b64urlEncode({ key, name, devices });
@@ -216,30 +205,88 @@ modal.addEventListener('click', (e) => {
 
 // --- WEB COMPONENTS ---
 
-// --- BuildingPicker Web Component ---
+// --- BuildingPicker Web Component (now loads from Supabase) ---
 class BuildingPicker extends HTMLElement {
     constructor() {
         super();
         this.isMobile = window.innerWidth < 640;
-        this.checklists = CHECKLISTS || [];
+        this.checklists = [];
+        this.loading = false;
     }
+
     connectedCallback() {
-        this.render();
-        this.attachEventListeners();
+        this.isMobile = window.innerWidth < 640;
+        this.renderLoading();
+        this.loadFromSupabase();
         window.addEventListener('resize', debounce(() => this.handleResize(), 200));
     }
+
+    disconnectedCallback() {
+        window.removeEventListener('resize', this.handleResize);
+    }
+
+    renderLoading() {
+        const containerId = this.isMobile ? '#mobile-building-picker-container' : '#desktop-building-picker-container';
+        const otherContainerId = this.isMobile ? '#desktop-building-picker-container' : '#mobile-building-picker-container';
+        const container = $(containerId);
+        const otherContainer = $(otherContainerId);
+        if (!container) return;
+        container.innerHTML = `<p class="text-sm text-slate-500 p-2">Loading checklists...</p>`;
+        if (otherContainer) otherContainer.innerHTML = '';
+    }
+
+    async loadFromSupabase() {
+        this.loading = true;
+        try {
+            const { data, error } = await db
+                .from('checklists')
+                .select(`
+                    id,
+                    name,
+                    year,
+                    company:company_id ( name )
+                `)
+                .order('name', { ascending: true });
+
+            if (error) throw error;
+
+            this.checklists = (data || []).map(row => ({
+                key: row.id, // UUID – used as stable checklist key
+                name: row.company?.name || row.name || 'Untitled Checklist',
+                location: row.name,
+                year: row.year,
+                companyName: row.company?.name || '',
+            }));
+        } catch (err) {
+            console.error('Failed to load checklists from Supabase:', err);
+            this.checklists = [];
+            showToast('Failed to load checklists from database.', 'error');
+        } finally {
+            this.loading = false;
+            this.render();
+            this.attachEventListeners();
+        }
+    }
+
     render() {
         const containerId = this.isMobile ? '#mobile-building-picker-container' : '#desktop-building-picker-container';
         const otherContainerId = this.isMobile ? '#desktop-building-picker-container' : '#mobile-building-picker-container';
         const container = $(containerId);
         const otherContainer = $(otherContainerId);
         if (!container) return;
+
         container.innerHTML = this.isMobile ? this.getMobileHTML() : this.getDesktopHTML();
         if (otherContainer) otherContainer.innerHTML = '';
         this.attachEventListeners();
     }
+
     getMobileHTML() {
-         if (this.checklists.length === 0) return `<p class="text-center text-sm text-slate-500">No checklists available.</p>`;
+        if (this.loading) {
+            return `<p class="text-center text-sm text-slate-500">Loading checklists...</p>`;
+        }
+        if (this.checklists.length === 0) {
+            return `<p class="text-center text-sm text-slate-500">No checklists available.</p>`;
+        }
         return `
             <label for="building-select" class="sr-only">Select Checklist</label>
             <select id="building-select" class="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 focus-ring sm:text-sm">
@@ -248,12 +295,24 @@ class BuildingPicker extends HTMLElement {
             </select>
         `;
     }
+
     getDesktopHTML() {
-         return `
+        if (this.loading) {
+            return `
+                <div class="sticky top-20">
+                    <div class="bg-white dark:bg-slate-900 rounded-xl shadow p-4">
+                        <h2 class="text-lg font-semibold mb-3">Checklists</h2>
+                        <p class="text-sm text-slate-500">Loading checklists...</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        return `
             <div class="sticky top-20">
                 <div class="bg-white dark:bg-slate-900 rounded-xl shadow p-4">
                     <h2 class="text-lg font-semibold mb-3">Checklists</h2>
-                     <input type="search" id="building-search" placeholder="Search checklists..." class="mb-3 block w-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md shadow-sm py-2 px-3 focus-ring sm:text-sm">
+                    <input type="search" id="building-search" placeholder="Search checklists..." class="mb-3 block w-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-md shadow-sm py-2 px-3 focus-ring sm:text-sm">
                     <ul id="building-list" class="space-y-1 max-h-[calc(100vh-12rem)] overflow-y-auto">
                         ${this.checklists.length === 0 ? `<li class="text-sm text-slate-500">No checklists available.</li>` : ''}
                         ${this.checklists.map(c => `
@@ -268,9 +327,15 @@ class BuildingPicker extends HTMLElement {
             </div>
         `;
     }
+
     attachEventListeners() {
         const mobileSelect = $('#building-select');
-        if (mobileSelect) mobileSelect.addEventListener('change', (e) => { if (e.target.value) this.selectChecklist(e.target.value); });
+        if (mobileSelect) {
+            mobileSelect.addEventListener('change', (e) => {
+                if (e.target.value) this.selectChecklist(e.target.value);
+            });
+        }
+
         const desktopList = $('#building-list');
         if (desktopList) {
             desktopList.addEventListener('click', (e) => {
@@ -283,9 +348,13 @@ class BuildingPicker extends HTMLElement {
                 }
             });
         }
+
         const searchInput = $('#building-search');
-        if (searchInput) searchInput.addEventListener('input', debounce((e) => this.filterChecklists(e.target.value), 200));
+        if (searchInput) {
+            searchInput.addEventListener('input', debounce((e) => this.filterChecklists(e.target.value), 200));
+        }
     }
+
     filterChecklists(query) {
         const q = query.toLowerCase();
         $$('#building-list li').forEach(li => {
@@ -296,9 +365,11 @@ class BuildingPicker extends HTMLElement {
             }
         });
     }
+
     selectChecklist(key) {
         document.dispatchEvent(new CustomEvent('checklist-selected', { detail: { key } }));
     }
+
     handleResize() {
         const newIsMobile = window.innerWidth < 640;
         if (newIsMobile !== this.isMobile) {
@@ -310,18 +381,17 @@ class BuildingPicker extends HTMLElement {
 customElements.define('building-picker', BuildingPicker);
 
 
-// --- ChecklistWorkspace Web Component ---
+// --- ChecklistWorkspace Web Component (now loads from Supabase) ---
 class ChecklistWorkspace extends HTMLElement {
     constructor() {
         super();
         this.data = null;
-        this.checklistKey = null;
+        this.checklistKey = null; // this will be checklist.id (UUID)
         this.sortState = { key: 'address', dir: 'asc' };
         this.state = {
             checkedDevices: new Set(),
             checkHistory: [],
         };
-        // Bind 'this' for event handlers that are added/removed
         this.handleMenuAction = this.handleMenuAction.bind(this);
         this.handleSortChange = this.handleSortChange.bind(this);
         this.handleFileImport = this.handleFileImport.bind(this);
@@ -331,7 +401,6 @@ class ChecklistWorkspace extends HTMLElement {
 
     connectedCallback() {
         document.addEventListener('request-workspace-action', this.handleMenuAction);
-        // Listen for file import
         this.fileInput = $('#import-file-input');
         if (this.fileInput) {
             this.fileInput.addEventListener('change', this.handleFileImport);
@@ -340,7 +409,7 @@ class ChecklistWorkspace extends HTMLElement {
 
     disconnectedCallback() {
         document.removeEventListener('request-workspace-action', this.handleMenuAction);
-         if (this.fileInput) {
+        if (this.fileInput) {
             this.fileInput.removeEventListener('change', this.handleFileImport);
         }
     }
@@ -348,31 +417,62 @@ class ChecklistWorkspace extends HTMLElement {
     attributeChangedCallback(name, oldValue, newValue) {
         if (name === 'building-key' && oldValue !== newValue) {
             this.checklistKey = newValue;
-            this.loadChecklist();
+            this.loadChecklistFromSupabase();
         }
     }
     
     getUniqueDeviceId(device) {
-        // Use a combination of properties to create a reliable unique ID
         return `${this.checklistKey}-${device.serialNumber}-${device.loop}-${device.address}-${device.messages}`;
     }
 
-    loadChecklist() {
+    async loadChecklistFromSupabase() {
         this.innerHTML = `<div class="text-center py-20">Loading checklist...</div>`;
         try {
-            const checklistData = CHECKLISTS.find(c => c.key === this.checklistKey);
-            if (!checklistData) throw new Error("Checklist not found.");
-            
-            this.data = JSON.parse(JSON.stringify(checklistData));
-            this.data.devices = this.data.devices.map(device => normalizeDevice(device));
-            
+            // Fetch checklist + company name
+            const { data: checklistRow, error: checklistErr } = await db
+                .from('checklists')
+                .select(`
+                    id,
+                    name,
+                    year,
+                    company:company_id ( name )
+                `)
+                .eq('id', this.checklistKey)
+                .maybeSingle();
+
+            if (checklistErr) throw checklistErr;
+            if (!checklistRow) throw new Error("Checklist not found in database.");
+
+            const { data: deviceRows, error: deviceErr } = await db
+                .from('devices')
+                .select('*')
+                .eq('checklist_id', this.checklistKey);
+
+            if (deviceErr) throw deviceErr;
+
+            this.data = {
+                key: checklistRow.id,
+                name: checklistRow.company?.name || 'Checklist',
+                location: checklistRow.name, // e.g. "Fire Alarm Device Inspection"
+                devices: (deviceRows || []).map(row => ({
+                    loop: row.loop ?? '',
+                    address: row.address ?? '',
+                    systemAddress: '', // not stored; we can compute later if needed
+                    model: row.model ?? '',
+                    deviceType: row.device_type ?? '',
+                    deviceTypeID: '',
+                    serialNumber: row.serial_number ?? '',
+                    messages: row.messages ?? '',
+                }))
+            };
+
             this.loadInspectedState();
             this.render();
- 
+
         } catch (error) {
-            showToast(error.message, 'error');
-            this.innerHTML = `<div class="text-center py-20 text-red-500">${escapeHTML(error.message)}</div>`;
-            console.error("Failed to load checklist:", error);
+            console.error("Failed to load checklist from Supabase:", error);
+            showToast(error.message || 'Failed to load checklist from database.', 'error');
+            this.innerHTML = `<div class="text-center py-20 text-red-500">${escapeHTML(error.message || 'Failed to load checklist.')}</div>`;
         }
     }
     
@@ -511,7 +611,7 @@ class ChecklistWorkspace extends HTMLElement {
         } else {
              this.updateDeviceCounter();
         }
-        // After rendering, try to apply any pending merge
+
         setTimeout(() => this.checkMergeParamAndApply(), 0);
     }
     
@@ -520,23 +620,19 @@ class ChecklistWorkspace extends HTMLElement {
         const intent = window.__pendingMergeIntent || extractShareIntentFromURL();
         if (!intent) return;
 
-        // If this workspace isn't for the target checklist, keep intent for later
         if (this.checklistKey !== intent.key) {
           window.__pendingMergeIntent = intent;
           return;
         }
 
-        // Figure out which IDs to merge
         let idsToMerge = [];
 
         if (intent.kind === 'v2') {
-          // Compact: decode bitset -> indices -> IDs
           const total = this.data.devices.length;
           const bytes = b64UrlToBytes(intent.bits);
           const indices = unpackBitset(bytes, total);
           idsToMerge = indices.map(i => this.getUniqueDeviceId(this.data.devices[i]));
         } else {
-          // Legacy: already have IDs
           idsToMerge = intent.ids || [];
         }
 
@@ -559,10 +655,9 @@ class ChecklistWorkspace extends HTMLElement {
             showToast('No new devices to merge — already up to date.', 'info');
           }
 
-          // Clean URL so refresh doesn't re-merge
           try {
             const u = new URL(location.href);
-            u.searchParams.delete('merge'); // legacy
+            u.searchParams.delete('merge');
             if (u.hash.includes('m=')) {
               const frag = new URLSearchParams(u.hash.slice(1));
               frag.delete('m');
@@ -584,7 +679,7 @@ class ChecklistWorkspace extends HTMLElement {
       }
     }
 
-   renderAccordionHTML(devices) {
+    renderAccordionHTML(devices) {
       if (devices.length === 0) return '';
       const listId = `completed-list-${this.checklistKey}`;
       return `
@@ -605,7 +700,7 @@ class ChecklistWorkspace extends HTMLElement {
             return `<svg class="sort-icon inline-block w-4 h-4 ml-1 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4"></path></svg>`;
         }
         if (this.sortState.dir === 'asc') {
-            return `<svg class="sort-icon inline-block w-4 h-4 ml-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clip-rule="evenodd"></path></svg>`;
+            return `<svg class="sort-icon inline-block w-4 h-4 ml-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414z" clip-rule="evenodd"></path></svg>`;
         } else {
             return `<svg class="sort-icon inline-block w-4 h-4 ml-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>`;
         }
@@ -795,7 +890,7 @@ class ChecklistWorkspace extends HTMLElement {
         }
         
         if (action === 'import') {
-            this.fileInput.click(); // Trigger the hidden file input
+            this.fileInput.click();
             return;
         }
 
@@ -847,7 +942,6 @@ class ChecklistWorkspace extends HTMLElement {
             console.warn('Share failed or was canceled; falling back to download:', err);
         }
 
-        // Fallback: keep your old auto-download
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -859,22 +953,17 @@ class ChecklistWorkspace extends HTMLElement {
         showToast('Exported inspected list as JSON.', 'success');
     }
 
-    // New: compact fragment link using bitset
     async createShareLink() {
       if (!this.data) {
         showToast('Open a checklist first.', 'info');
         return;
       }
       const total = this.data.devices.length;
-
-      // Build bitset over the ORIGINAL data order (not the filtered/sorted view)
       const bytes = packBitset(total, (i) => {
         const id = this.getUniqueDeviceId(this.data.devices[i]);
         return this.state.checkedDevices.has(id);
       });
       const bits = bytesToB64Url(bytes);
-
-      // #m=2.<key>.<bits>   (fragment keeps payload out of servers/proxies)
       const url = `${location.origin}${location.pathname}#m=2.${encodeURIComponent(this.checklistKey)}.${bits}`;
 
       try {
@@ -888,11 +977,9 @@ class ChecklistWorkspace extends HTMLElement {
           return;
         }
       } catch (e) {
-        // user canceled share; fall through
         console.warn('navigator.share failed or canceled:', e);
       }
 
-      // Fallback: copy to clipboard
       try {
         await navigator.clipboard.writeText(url);
         showToast('Share link copied to clipboard.', 'success');
@@ -903,14 +990,13 @@ class ChecklistWorkspace extends HTMLElement {
    
     handleFileImport(event) {
         const file = event.target.files[0];
-        if (!file) return; // User cancelled the dialog
+        if (!file) return;
 
         const reader = new FileReader();
         reader.onload = (e) => {
             try {
                 const importedData = JSON.parse(e.target.result);
                 
-                // Validation
                 if (!importedData.checklistName || !Array.isArray(importedData.devices)) {
                     throw new Error("Invalid file format. Missing 'checklistName' or 'devices' properties.");
                 }
@@ -918,7 +1004,6 @@ class ChecklistWorkspace extends HTMLElement {
                     throw new Error(`Checklist mismatch. Current is "${this.data.name}", but file is for "${importedData.checklistName}".`);
                 }
 
-                // Merge the imported data
                 let newDevicesImported = 0;
                 importedData.devices.forEach(device => {
                     const normalizedDevice = normalizeDevice(device);
@@ -938,7 +1023,6 @@ class ChecklistWorkspace extends HTMLElement {
                 showToast(`Import Failed: ${error.message}`, 'error');
                 console.error("Import error:", error);
             } finally {
-                // Reset file input to allow importing the same file again if needed
                 event.target.value = '';
             }
         };
@@ -974,7 +1058,7 @@ class ChecklistWorkspace extends HTMLElement {
 
       const visibleRows = Array.from($$('.device-row', this)).filter(row => {
         const rowIsHiddenBySearch = row.style.display === 'none';
-        const completedList = row.closest('[id^="completed-list-"]'); // updated: matches new per-checklist ID
+        const completedList = row.closest('[id^="completed-list-"]');
         const accordionIsCollapsed = completedList && completedList.classList.contains('hidden');
         return !rowIsHiddenBySearch && !accordionIsCollapsed;
       });
@@ -1000,7 +1084,9 @@ class ChecklistWorkspace extends HTMLElement {
             const lastCheckedId = this.state.checkHistory[this.state.checkHistory.length - 1];
             const device = this.data.devices.find(d => this.getUniqueDeviceId(d) === lastCheckedId);
             if (device) {
-                const idText = device.systemAddress ? device.systemAddress : (device.loop !== 'N/A' ? `L${device.loop}/A${device.address}` : `${device.deviceType} ${device.address}`);
+                const idText = device.systemAddress
+                    ? device.systemAddress
+                    : (device.loop !== 'N/A' && device.loop !== '' ? `L${device.loop}/A${device.address}` : `${device.deviceType} ${device.address}`);
                 lastCheckedText.textContent = ` ${idText}: ${device.messages}`;
                 lastCheckedContainer.classList.remove('invisible');
             }
@@ -1018,13 +1104,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (mobilePickerContainer) mobilePickerContainer.appendChild(document.createElement('building-picker'));
     if (desktopPickerContainer) desktopPickerContainer.appendChild(document.createElement('building-picker'));
     
-    // If a share token is present, pre-select its checklist so the workspace mounts
     try {
       const intent = extractShareIntentFromURL();
       if (intent && intent.key) {
-        // stash intent for the workspace to consume post-render
         window.__pendingMergeIntent = intent;
-        // Ask the app to load that checklist (fires 'checklist-selected')
         document.dispatchEvent(new CustomEvent('checklist-selected', { detail: { key: intent.key } }));
       }
     } catch (err) {
