@@ -1,33 +1,46 @@
 // supabase-checklists.js (ES module)
 
-// Import your existing checklists from checklists.js
 import { CHECKLISTS } from "./checklists.js";
 
 // Supabase client created in supabase-config.js (classic script)
 const db = window.supabaseClient;
 
 /**
+ * Helper: convert value to integer or null.
+ */
+function toIntOrNull(value) {
+  if (value === undefined || value === null) return null;
+
+  // If it's already a number
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  // If it's a string like "N/A", "", etc., try to parse
+  const trimmed = String(value).trim();
+  if (trimmed === "" || trimmed.toUpperCase() === "N/A") return null;
+
+  const parsed = parseInt(trimmed, 10);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+/**
  * Ensure a company exists with the given name, return its row.
  */
 async function getOrCreateCompanyByName(name) {
-  // Try to find existing company
   let { data, error } = await db
     .from("companies")
     .select("*")
     .eq("name", name)
     .maybeSingle();
 
-  // If there's an error other than "no rows", throw
   if (error && error.code !== "PGRST116") {
     console.error("Error fetching company:", error);
     throw error;
   }
 
-  if (data) {
-    return data;
-  }
+  if (data) return data;
 
-  // Otherwise insert new
   const { data: inserted, error: insertError } = await db
     .from("companies")
     .insert({ name })
@@ -71,8 +84,8 @@ async function createChecklist(companyId, checklistName, year = null) {
 async function insertDevicesForChecklist(checklistId, devicesArray) {
   const rows = devicesArray.map((d) => ({
     checklist_id: checklistId,
-    loop: d.loop ?? null,
-    address: d.address ?? null,
+    loop: toIntOrNull(d.loop),
+    address: toIntOrNull(d.address),
     model: d.model ?? null,
     device_type: d.deviceType ?? null,
     serial_number: d.serialNumber ?? null,
@@ -83,6 +96,7 @@ async function insertDevicesForChecklist(checklistId, devicesArray) {
 
   if (error) {
     console.error("Error inserting devices:", error);
+    console.error("Offending rows sample:", rows.slice(0, 5));
     throw error;
   }
 }
@@ -93,8 +107,6 @@ async function insertDevicesForChecklist(checklistId, devicesArray) {
  *
  * Usage in browser console:
  *   migrateExistingChecklistsOnce()
- * or:
- *   await migrateExistingChecklistsOnce()
  */
 export async function migrateExistingChecklistsOnce() {
   if (!Array.isArray(CHECKLISTS) || CHECKLISTS.length === 0) {
@@ -106,7 +118,6 @@ export async function migrateExistingChecklistsOnce() {
   console.log(`Starting migration of ${CHECKLISTS.length} checklists...`);
 
   for (const cl of CHECKLISTS) {
-    // Your shape:
     // {
     //   key: "mcfarland_psc",
     //   name: "McFarland Public Safety Center",
