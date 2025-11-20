@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Omni Checklist Admin</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'media',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            slate: {
+              850: '#17202e',
+              950: '#0f172a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+  </style>
+</head>
+<body class="bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-200">
+
+  <!-- Toasts/Notifications Container (reused pattern) -->
+  <div id="toast-container" aria-live="assertive" aria-atomic="true"
+       class="fixed bottom-4 right-4 p-4 space-y-3 z-50 w-full max-w-sm"></div>
+
+  <div class="min-h-screen flex flex-col">
+    <!-- Header -->
+    <header class="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="text-2xl font-bold text-sky-600 dark:text-sky-500">🛠️</span>
+          <div>
+            <h1 class="text-lg font-bold tracking-tight">Omni Checklist Admin</h1>
+            <p class="text-xs text-slate-500 dark:text-slate-400">Paste a checklist JSON and push it to Supabase.</p>
+          </div>
+        </div>
+        <a href="./index.html"
+           class="text-sm px-3 py-1 rounded-md border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800">
+          ⬅ Back to App
+        </a>
+      </div>
+    </header>
+
+    <!-- Main -->
+    <main class="flex-1">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <section class="bg-white dark:bg-slate-900 rounded-xl shadow p-4 sm:p-6 space-y-4">
+          <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <h2 class="text-lg font-semibold">Checklist JSON Input</h2>
+              <p class="text-xs text-slate-500 dark:text-slate-400">
+                Paste a single checklist object in the same format as <code>checklists.js</code>.
+              </p>
+            </div>
+            <div class="flex items-center gap-2 text-xs">
+              <span class="text-slate-500 dark:text-slate-400">Existing checklist:</span>
+              <select id="existing-mode"
+                      class="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md px-2 py-1 text-xs">
+                <option value="replace">Replace devices</option>
+                <option value="skip">Skip if exists</option>
+              </select>
+            </div>
+          </header>
+
+          <div class="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg p-3 text-xs text-slate-600 dark:text-slate-400">
+            <p class="font-semibold mb-1">Expected format (example):</p>
+            <pre class="whitespace-pre-wrap text-xs overflow-x-auto">
+{
+  "key": "mcfarland_psc",
+  "name": "McFarland Public Safety Center",
+  "location": "Fire Alarm Device Inspection",
+  "devices": [
+    { "loop": 1, "address": 1, "model": "PS", "deviceType": "Smoke Verified", "serialNumber": "3939747909", "messages": "BASEMENT SMOKE ABOVE FACP" },
+    { "loop": 1, "address": 2, "model": "HRS", "deviceType": "Heat ROR", "serialNumber": "3831067556", "messages": "BASEMENT HEAT BY SPRINK PIPING" }
+  ]
+}
+            </pre>
+          </div>
+
+          <div class="space-y-2">
+            <label for="checklist-json" class="text-sm font-medium">
+              Checklist JSON
+            </label>
+            <textarea id="checklist-json"
+                      class="w-full min-h-[260px] bg-slate-950/5 dark:bg-black/20 border border-slate-300 dark:border-slate-700 rounded-md p-3 font-mono text-xs resize-y focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      placeholder='Paste one checklist object here...'></textarea>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-between gap-2 pt-2">
+            <button id="load-sample-btn"
+                    type="button"
+                    class="text-xs px-3 py-1 rounded-md border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800">
+              Load sample JSON
+            </button>
+            <button id="upload-btn"
+                    type="button"
+                    class="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium shadow-sm">
+              <span>Upload to Supabase</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="bg-white dark:bg-slate-900 rounded-xl shadow p-4 sm:p-6 space-y-2">
+          <header class="flex items-center justify-between">
+            <h2 class="text-sm font-semibold">Upload Log</h2>
+            <button id="clear-log-btn"
+                    type="button"
+                    class="text-xs px-2 py-1 rounded-md border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800">
+              Clear log
+            </button>
+          </header>
+          <div id="log-output"
+               class="min-h-[120px] max-h-72 overflow-y-auto text-xs font-mono bg-slate-950/5 dark:bg-black/20 border border-slate-200 dark:border-slate-800 rounded-md p-2">
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- Supabase config (must define window.supabaseClient) -->
+  <script src="./supabase-config.js"></script>
+
+  <!-- Admin upload logic -->
+  <script type="module" src="./admin-upload.js"></script>
+</body>
+</html>
