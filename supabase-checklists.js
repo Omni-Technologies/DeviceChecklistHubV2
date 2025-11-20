@@ -1,5 +1,6 @@
 // supabase-checklists.js (ES module)
 
+// Import your existing checklists from checklists.js
 import { CHECKLISTS } from "./checklists.js";
 
 // Supabase client created in supabase-config.js (classic script)
@@ -64,7 +65,7 @@ async function createChecklist(companyId, checklistName, year = null) {
 }
 
 /**
- * Bulk insert devices rows for a checklist.
+ * Bulk insert device rows for a checklist.
  * devicesArray items must have: loop, address, model, deviceType, serialNumber, messages
  */
 async function insertDevicesForChecklist(checklistId, devicesArray) {
@@ -91,6 +92,8 @@ async function insertDevicesForChecklist(checklistId, devicesArray) {
  * Reads all CHECKLISTS from checklists.js and pushes them to Supabase.
  *
  * Usage in browser console:
+ *   migrateExistingChecklistsOnce()
+ * or:
  *   await migrateExistingChecklistsOnce()
  */
 export async function migrateExistingChecklistsOnce() {
@@ -111,7 +114,7 @@ export async function migrateExistingChecklistsOnce() {
     //   devices: [ ... ]
     // }
 
-    const companyName = cl.name || cl.key; // Treat building name as "company" for now
+    const companyName = cl.name || cl.key; // Treat building name as "company"
     const checklistName =
       cl.location || cl.name || cl.key || "Unnamed Checklist";
     const devicesArray = cl.devices || [];
@@ -165,7 +168,9 @@ export async function migrateExistingChecklistsOnce() {
   alert("✅ Migration to Supabase finished. Check console for summary.");
 }
 
-// Also expose it on window for easy console access:
+// Also expose it globally for easy console access
 window.migrateExistingChecklistsOnce = migrateExistingChecklistsOnce;
 
-console.log("supabase-checklists.js loaded. You can run migrateExistingChecklistsOnce() from the console.");
+console.log(
+  "supabase-checklists.js loaded. You can run migrateExistingChecklistsOnce() from the console."
+);
