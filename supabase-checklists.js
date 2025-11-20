@@ -183,23 +183,66 @@ export async function migrateExistingChecklistsOnce() {
  * Re-migrate devices for a single checklist from CHECKLISTS into Supabase.
  * Use this if a checklist exists in Supabase but has missing devices.
  *
- * Example in console:
+ * Examples in console:
  *   remigrateChecklistByCompanyName("McFarland Public Safety Center");
+ *   remigrateChecklistByCompanyName("mcfarland_psc");
+ *   remigrateChecklistByCompanyName("mcfarland");
  */
 export async function remigrateChecklistByCompanyName(nameOrKey) {
-  // 1) Find the checklist in the local CHECKLISTS array
-  const cl = CHECKLISTS.find(
-    (c) => c.name === nameOrKey || c.key === nameOrKey
-  );
+  if (!nameOrKey || !String(nameOrKey).trim()) {
+    console.warn(
+      "remigrateChecklistByCompanyName called with empty name/key. Available checklists:"
+    );
+    console.table(
+      CHECKLISTS.map((c) => ({
+        key: c.key,
+        name: c.name,
+        location: c.location,
+      }))
+    );
+    alert(
+      'Please pass a non-empty name or key. See console for available checklist names/keys.'
+    );
+    return;
+  }
+
+  const needle = String(nameOrKey).trim().toLowerCase();
+
+  // 1) Find the checklist in the local CHECKLISTS array (more forgiving)
+  const cl =
+    CHECKLISTS.find(
+      (c) =>
+        (c.name && c.name.toLowerCase() === needle) ||
+        (c.key && c.key.toLowerCase() === needle)
+    ) ||
+    CHECKLISTS.find(
+      (c) =>
+        (c.name && c.name.toLowerCase().includes(needle)) ||
+        (c.location && c.location.toLowerCase().includes(needle))
+    );
 
   if (!cl) {
-    alert(`No checklist found in CHECKLISTS for "${nameOrKey}".`);
+    console.warn(
+      `No exact/partial match in CHECKLISTS for "${nameOrKey}". Available checklists:`
+    );
+    console.table(
+      CHECKLISTS.map((c) => ({
+        key: c.key,
+        name: c.name,
+        location: c.location,
+      }))
+    );
+    alert(`No checklist found in CHECKLISTS for "${nameOrKey}". Check console for options.`);
     return;
   }
 
   const companyName = cl.name || cl.key;
   const checklistName =
     cl.location || cl.name || cl.key || "Unnamed Checklist";
+
+  console.log(
+    `Re-migrating checklist from CHECKLISTS for company="${companyName}", checklist="${checklistName}"...`
+  );
 
   // 2) Find the company row in Supabase
   const { data: company, error: companyErr } = await db
@@ -262,5 +305,5 @@ window.migrateExistingChecklistsOnce = migrateExistingChecklistsOnce;
 window.remigrateChecklistByCompanyName = remigrateChecklistByCompanyName;
 
 console.log(
-  "supabase-checklists.js loaded. You can run migrateExistingChecklistsOnce() or remigrateChecklistByCompanyName(name) from the console."
+  "supabase-checklists.js loaded. You can run migrateExistingChecklistsOnce() or remigrateChecklistByCompanyName(nameOrKey) from the console."
 );
