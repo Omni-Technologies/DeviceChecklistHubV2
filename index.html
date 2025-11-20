@@ -201,7 +201,14 @@
         </div>
     </div>
     
-    <!-- Main Application Logic -->
+    <!-- Supabase + App scripts -->
+    <!-- 1) Supabase JS from CDN (global `supabase`) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- 2) Your Supabase config (creates `window.supabaseClient` + test function) -->
+    <script src="./supabase-config.js"></script>
+    <!-- 3) Your Supabase helpers/migration (we'll expand this later) -->
+    <script src="./supabase-checklists.js"></script>
+    <!-- 4) Main Application Logic (still a module) -->
     <script type="module" src="./app.js"></script>
 
 </body>
