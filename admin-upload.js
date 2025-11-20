@@ -1,10 +1,11 @@
 // admin-upload.js
-// Simple admin page to paste a checklist JSON and push it into Supabase.
+// Admin page to paste checklist JSON and manage (upload + delete) checklists in Supabase.
 
 const db = window.supabaseClient;
 
 // --- small helpers ---
 const $  = (sel, parent = document) => parent.querySelector(sel);
+const $$ = (sel, parent = document) => parent.querySelectorAll(sel);
 
 function appendLog(message, type = "info") {
   const log = $("#log-output");
@@ -69,7 +70,7 @@ function toIntOrNull(value) {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
-// --- Supabase helpers (local copies of logic you already use) ---
+// --- Supabase helpers (mirroring your main logic) ---
 
 async function getOrCreateCompanyByName(name) {
   let { data, error } = await db
@@ -150,8 +151,6 @@ async function replaceDevicesForChecklist(checklistId, devicesArray) {
   if (error) throw error;
 }
 
-// --- core upload logic ---
-
 /**
  * Upsert one checklist object:
  * - companyName = obj.name || obj.key
@@ -214,7 +213,153 @@ async function upsertChecklistFromObject(obj, existingMode = "replace") {
   return { company, checklist, created: !exists, devicesUpdated: true };
 }
 
-// --- UI wiring ---
+// --- DELETE / LIST checklists ---
+
+async function fetchExistingChecklists() {
+  const listEl = $("#checklist-list");
+  if (!listEl) return;
+
+  listEl.innerHTML =
+    '<div class="px-3 py-3 text-xs text-slate-500 dark:text-slate-400">Loading checklists...</div>';
+
+  try {
+    const { data, error } = await db
+      .from("checklists")
+      .select(
+        `
+        id,
+        name,
+        year,
+        company:company_id (
+          id,
+          name
+        )
+      `
+      )
+      .order("name", { ascending: true });
+
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
+      listEl.innerHTML =
+        '<div class="px-3 py-3 text-xs text-slate-500 dark:text-slate-400">No checklists found.</div>';
+      return;
+    }
+
+    listEl.innerHTML = data
+      .map((row) => {
+        const companyName = row.company?.name || "Unknown company";
+        const checklistName = row.name || "Unnamed checklist";
+        const year = row.year || "";
+        const checklistId = row.id;
+        const companyId = row.company?.id || "";
+
+        return `
+          <div class="px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/60">
+            <div class="grid grid-cols-12 gap-2 items-center">
+              <div class="col-span-12 sm:col-span-4">
+                <div class="font-semibold text-slate-800 dark:text-slate-100 truncate" title="${companyName}">
+                  ${companyName}
+                </div>
+              </div>
+              <div class="col-span-12 sm:col-span-4">
+                <div class="truncate text-slate-700 dark:text-slate-200" title="${checklistName}">
+                  ${checklistName}
+                </div>
+              </div>
+              <div class="col-span-6 sm:col-span-2 text-slate-500 dark:text-slate-400">
+                ${year}
+              </div>
+              <div class="col-span-6 sm:col-span-2 flex justify-end">
+                <button
+                  type="button"
+                  class="text-[11px] px-2 py-1 rounded-md border border-red-400 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30"
+                  data-checklist-id="${checklistId}"
+                  data-company-id="${companyId}"
+                  data-company-name="${companyName}"
+                  data-checklist-name="${checklistName}"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      })
+      .join("");
+  } catch (err) {
+    console.error("Failed to fetch checklists:", err);
+    listEl.innerHTML =
+      '<div class="px-3 py-3 text-xs text-red-500">Error loading checklists. See console.</div>';
+  }
+}
+
+async function deleteChecklistAndDevices(checklistId, companyId, companyName, checklistName) {
+  const confirmed = window.confirm(
+    `Delete checklist "${checklistName}" for "${companyName}"?\n\n` +
+      `This will delete the checklist and all of its devices.`
+  );
+  if (!confirmed) return;
+
+  appendLog(
+    `Deleting checklist "${checklistName}" (id=${checklistId}) for company "${companyName}" (id=${companyId})...`,
+    "info"
+  );
+
+  try {
+    // 1) delete devices
+    const { error: devicesErr } = await db
+      .from("devices")
+      .delete()
+      .eq("checklist_id", checklistId);
+    if (devicesErr) throw devicesErr;
+
+    // 2) delete checklist
+    const { error: checklistErr } = await db
+      .from("checklists")
+      .delete()
+      .eq("id", checklistId);
+    if (checklistErr) throw checklistErr;
+
+    appendLog(
+      `Deleted checklist and devices for "${checklistName}" (id=${checklistId}).`,
+      "success"
+    );
+
+    // 3) Optionally delete company if it has no checklists left
+    if (companyId) {
+      const { data: remaining, error: remainingErr } = await db
+        .from("checklists")
+        .select("id")
+        .eq("company_id", companyId);
+
+      if (!remainingErr && (!remaining || remaining.length === 0)) {
+        const { error: companyErr } = await db
+          .from("companies")
+          .delete()
+          .eq("id", companyId);
+        if (!companyErr) {
+          appendLog(
+            `Company "${companyName}" (id=${companyId}) had no more checklists and was deleted.`,
+            "info"
+          );
+        }
+      }
+    }
+
+    showToast(`Deleted checklist "${checklistName}".`, "success");
+    await fetchExistingChecklists();
+  } catch (err) {
+    console.error("Delete checklist failed:", err);
+    appendLog(
+      `Delete failed for "${checklistName}": ${err.message || String(err)}`,
+      "error"
+    );
+    showToast("Delete failed. See log.", "error");
+  }
+}
+
+// --- Upload UI wiring ---
 
 function loadSampleJSON() {
   const sample = {
@@ -303,6 +448,9 @@ async function handleUploadClick() {
       "error"
     );
   }
+
+  // Refresh list after upload
+  await fetchExistingChecklists();
 }
 
 // --- init ---
@@ -311,6 +459,8 @@ window.addEventListener("DOMContentLoaded", () => {
   const uploadBtn = $("#upload-btn");
   const sampleBtn = $("#load-sample-btn");
   const clearLogBtn = $("#clear-log-btn");
+  const refreshChecklistsBtn = $("#refresh-checklists-btn");
+  const checklistListEl = $("#checklist-list");
 
   if (uploadBtn) uploadBtn.addEventListener("click", () => handleUploadClick());
   if (sampleBtn) sampleBtn.addEventListener("click", () => loadSampleJSON());
@@ -319,6 +469,21 @@ window.addEventListener("DOMContentLoaded", () => {
       const log = $("#log-output");
       if (log) log.innerHTML = "";
     });
+  if (refreshChecklistsBtn)
+    refreshChecklistsBtn.addEventListener("click", () => fetchExistingChecklists());
+
+  if (checklistListEl) {
+    checklistListEl.addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-checklist-id]");
+      if (!btn) return;
+      const checklistId = btn.dataset.checklistId;
+      const companyId = btn.dataset.companyId;
+      const companyName = btn.dataset.companyName || "";
+      const checklistName = btn.dataset.checklistName || "";
+      deleteChecklistAndDevices(checklistId, companyId, companyName, checklistName);
+    });
+  }
 
   appendLog("Admin upload page ready.", "info");
+  fetchExistingChecklists();
 });
